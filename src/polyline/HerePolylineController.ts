@@ -7,7 +7,7 @@
  *       renderer: HerePolylineOverlayRenderer,
  *   ) : PolylineController<HereActualPolyline>(polylineManager, renderer)
  */
-import { PolylineController, PolylineManager, type PolylineState } from '@mapconductor/js-sdk-core';
+import { PolylineController, PolylineManager } from '@mapconductor/js-sdk-core';
 import type { HereActualPolyline } from '../HereTypeAlias';
 import { HerePolylineOverlayRenderer } from './HerePolylineOverlayRenderer';
 
@@ -17,13 +17,5 @@ export class HerePolylineController extends PolylineController<HereActualPolylin
       polylineManager: new PolylineManager<HereActualPolyline>(),
       renderer,
     });
-  }
-
-  async composition(data: PolylineState[]): Promise<void> {
-    await this.add(data);
-  }
-
-  has(state: PolylineState): boolean {
-    return this.polylineManager.hasEntity(state.id);
   }
 }

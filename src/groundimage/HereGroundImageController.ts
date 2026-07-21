@@ -7,11 +7,7 @@
  *       renderer: HereGroundImageOverlayRenderer,
  *   ) : GroundImageController<HereActualGroundImage>(groundImageManager, renderer)
  */
-import {
-  GroundImageController,
-  GroundImageManager,
-  type GroundImageState,
-} from '@mapconductor/js-sdk-core';
+import { GroundImageController, GroundImageManager } from '@mapconductor/js-sdk-core';
 import type { HereActualGroundImage } from '../HereTypeAlias';
 import { HereGroundImageOverlayRenderer } from './HereGroundImageOverlayRenderer';
 
@@ -21,13 +17,5 @@ export class HereGroundImageController extends GroundImageController<HereActualG
       groundImageManager: new GroundImageManager<HereActualGroundImage>(),
       renderer,
     });
-  }
-
-  async composition(data: GroundImageState[]): Promise<void> {
-    await this.add(data);
-  }
-
-  has(state: GroundImageState): boolean {
-    return this.groundImageManager.hasEntity(state.id);
   }
 }

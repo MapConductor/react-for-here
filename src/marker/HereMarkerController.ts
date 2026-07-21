@@ -18,7 +18,6 @@ import {
   type GeoPointInterface,
   type MarkerEntity,
   type MarkerState,
-  type OnMarkerEventHandler,
 } from '@mapconductor/js-sdk-core';
 import { HereMarkerRenderer } from './HereMarkerRenderer';
 import type { HereActualMarker } from '../HereTypeAlias';
@@ -98,10 +97,6 @@ export class HereMarkerController extends AbstractMarkerController<HereActualMar
     return dx >= left && dx <= right && dy >= top && dy <= bottom ? nearest : null;
   }
 
-  async composition(data: MarkerState[]): Promise<void> {
-    await this.add(data);
-  }
-
   override async update(state: MarkerState): Promise<void> {
     if (this.isDragging(state)) return;
     await super.update(state);
@@ -110,14 +105,6 @@ export class HereMarkerController extends AbstractMarkerController<HereActualMar
   has(state: MarkerState): boolean {
     return this.selected?.state.id === state.id || this.markerManager.hasEntity(state.id);
   }
-
-  // Mirrors the Android listener setters; the parent class stores them.
-  setOnClickListener(listener: OnMarkerEventHandler | null): void { this.clickListener = listener; }
-  setOnDragStart(listener: OnMarkerEventHandler | null): void { this.dragStartListener = listener; }
-  setOnDrag(listener: OnMarkerEventHandler | null): void { this.dragListener = listener; }
-  setOnDragEnd(listener: OnMarkerEventHandler | null): void { this.dragEndListener = listener; }
-  setOnAnimateStart(listener: OnMarkerEventHandler | null): void { this.animateStartListener = listener; }
-  setOnAnimateEnd(listener: OnMarkerEventHandler | null): void { this.animateEndListener = listener; }
 
   // Mirrors Android's `applyDragPosition` helper: keeps the dragged marker's
   // state in sync with the provider marker position during a drag.

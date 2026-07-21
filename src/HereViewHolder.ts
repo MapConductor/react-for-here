@@ -39,13 +39,6 @@ export class HereViewHolder extends MapViewHolderBase<HTMLElement, H.Map> {
   }
 
   /**
-   * Mirrors `fromScreenOffset(offset: Offset): GeoPoint?` in Android.
-   */
-  override async fromScreenOffset(offset: Offset): Promise<GeoPoint | null> {
-    return this.fromScreenOffsetSync(offset);
-  }
-
-  /**
    * Mirrors `fromScreenOffsetSync(offset: Offset): GeoPoint?` in Android.
    */
   override fromScreenOffsetSync(offset: Offset): GeoPoint | null {
