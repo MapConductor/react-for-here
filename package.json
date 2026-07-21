@@ -1,0 +1,49 @@
+{
+  "name": "@mapconductor/react-for-here",
+  "version": "0.1.1",
+  "description": "HERE Maps API for JavaScript provider for MapConductor React SDK",
+  "main": "./dist/index.js",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "README.ja.md",
+    "README.es-419.md"
+  ],
+  "scripts": {
+    "build": "tsup src/index.ts --format cjs,esm --dts",
+    "postbuild": "node -e \"const fs=require('fs');fs.copyFileSync('src/here.d.ts','dist/here.d.ts');for(const f of ['dist/index.d.ts','dist/index.d.mts']){fs.writeFileSync(f,'/// <reference path=\\\"./here.d.ts\\\" />\\n'+fs.readFileSync(f,'utf8'));}\"",
+    "dev": "tsup src/index.ts --format cjs,esm --watch",
+    "clean": "rm -rf dist",
+    "test": "echo 'No tests yet'"
+  },
+  "keywords": [
+    "maps",
+    "here",
+    "here-maps",
+    "react",
+    "typescript"
+  ],
+  "author": "MapConductor",
+  "license": "Apache2",
+  "peerDependencies": {
+    "@mapconductor/js-sdk-core": "^0.1.0",
+    "react": "^19.2.0"
+  },
+  "dependencies": {
+    "@mapconductor/js-sdk-core": "0.1.0",
+    "@mapconductor/js-sdk-react": "0.1.0"
+  },
+  "devDependencies": {
+    "react": "^19.2.7",
+    "tsup": "^8.5.1",
+    "typescript": "^5.9.3"
+  }
+}
