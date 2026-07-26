@@ -1,4 +1,4 @@
-English | [日本語](https://github.com/MapConductor/react-for-here/README.ja.md) | [Español (Latinoamérica)](https://github.com/MapConductor/react-for-here/README.es-419.md)
+English | [日本語](https://github.com/MapConductor/react-for-here/blob/main/README.ja.md) | [Español (Latinoamérica)](https://github.com/MapConductor/react-for-here/blob/main/README.es-419.md)
 
 # @mapconductor/react-for-here
 
