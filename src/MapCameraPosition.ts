@@ -20,6 +20,17 @@ const converter = new ZoomAltitudeConverter();
 const NEGATIVE_TILT_TARGET_DISTANCE_SCALE = 1.83;
 const NEGATIVE_TILT_ZOOM_OFFSET_AT_MAX_TILT = -0.9;
 
+/**
+ * Quantize a programmatic zoom target to the nearest integer, mirroring how
+ * Google Maps 2D (the project-wide camera reference) snaps zoom. HERE renders
+ * the true fractional zoom, so without this it sits up to half a level apart
+ * from Google at fractional targets (Oahu 9.5 -> 10, Kiribati 4.5 -> 5).
+ * Reported zoom (lookAtToMapCameraPosition) stays fractional and faithful.
+ */
+function snapZoomToGoogle(zoom: number): number {
+  return Math.round(zoom);
+}
+
 export interface HereDisplayCamera {
   target: MapCameraPosition['position'];
   tiltDeg: number;
@@ -38,7 +49,7 @@ export function toHereDisplayCamera(position: MapCameraPosition): HereDisplayCam
     return {
       target: createGeoPoint({ latitude: position.position.latitude, longitude: position.position.longitude }),
       tiltDeg: position.tilt,
-      hereZoomLevel: ZoomAltitudeConverter.googleZoomToHereZoom(position.zoom, position.position.latitude),
+      hereZoomLevel: ZoomAltitudeConverter.googleZoomToHereZoom(snapZoomToGoogle(position.zoom), position.position.latitude),
       bearing: position.bearing,
     };
   }

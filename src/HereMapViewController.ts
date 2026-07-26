@@ -147,6 +147,11 @@ export class HereMapViewController
     this.maxZoom = maxZoom;
     this.restrictBounds = restrictBounds;
     this.mapDesignType = initialMapDesignType;
+    // Tiled markers render into a raster overlay driven by the raster controller.
+    this.markerController.onRasterLayerUpdate = async state => {
+      if (state) await this.rasterLayerController.composition([state]);
+      else await this.rasterLayerController.clear();
+    };
     const initialLookAt = holder.map.getViewModel().getLookAtData();
     this.logicalPosition = toGeoPoint(initialLookAt.position);
     this.logicalZoom = initialLookAt.zoom;
@@ -408,6 +413,14 @@ export class HereMapViewController
       return;
     }
 
+    // Tiled markers are drawn into a raster overlay (no H.map.Marker to receive
+    // a tap, so find() above returns null for them); hit-test them here.
+    const tiled = this.markerController.findTiled(point, this.getCameraPosition()?.zoom ?? 0);
+    if (tiled?.state.clickable) {
+      this.markerController.dispatchClick(tiled.state);
+      return;
+    }
+
     const circleEntity = this.circleController.find(point);
     if (circleEntity) {
       this.circleController.dispatchClick({ state: circleEntity.state, clicked: point });
@@ -487,6 +500,24 @@ export class HereMapViewController
   private toGeoPointFromEvent(event: H.map.MapEvent): GeoPoint | null {
     const pointer = event.currentPointer;
     if (!pointer) return null;
+    // While the 2D view fakes tilt/bearing with a CSS transform on the map
+    // plane, HERE's native screenToGeo (which ignores that transform) returns
+    // the wrong coordinate for taps — the error is zero at the plane's centre
+    // and grows toward the edges. Reproject through the holder's tilt-aware
+    // inverse, using the tap position in the OUTER container's coordinate space
+    // (derived from the raw DOM event so it is unaffected by the transform).
+    if (this.getVisualTilt() > 0.5 || Math.abs(this.getVisualBearing()) > 0.01) {
+      const outer = this.holder.mapView.parentElement;
+      const originalEvent = (event as unknown as { originalEvent?: { clientX?: number; clientY?: number } }).originalEvent;
+      const clientX = originalEvent?.clientX;
+      const clientY = originalEvent?.clientY;
+      if (outer && typeof clientX === 'number' && typeof clientY === 'number') {
+        const rect = outer.getBoundingClientRect();
+        return this.holder.fromScreenOffsetSync({ x: clientX - rect.left, y: clientY - rect.top });
+      }
+    }
+    // Flat & north-up: the plane is 1:1 with the container, so the native
+    // projection is correct (and cheaper).
     const coord = this.holder.map.screenToGeo(pointer.viewportX, pointer.viewportY);
     if (!coord) return null;
     return createGeoPoint({ latitude: coord.lat, longitude: coord.lng });
@@ -547,6 +578,29 @@ export class HereMapViewController
     await this.markerController.update(state);
   }
   hasMarker(state: MarkerState): boolean { return this.markerController.has(state); }
+
+  /**
+   * Shows or hides the native HERE canvas markers. The 2D view hides them while
+   * its CSS tilt hack is active (which would otherwise flatten the icons against
+   * the ground) and renders upright DOM billboards in their place.
+   */
+  setNativeMarkersVisible(visible: boolean): void {
+    this.markerController.setNativeMarkersVisible(visible);
+  }
+
+  /**
+   * Marker states rendered as individual native markers (not tiled into the
+   * raster overlay). Only these need the tilted-view DOM billboard fallback;
+   * tiled markers are drawn by the raster tile layer, which HERE tilts natively.
+   * Returning the tiled markers here too would re-mount tens of thousands of
+   * DOM `<img>` nodes whenever the map is tilted, freezing the main thread.
+   */
+  getNonTiledMarkerStates(): MarkerState[] {
+    return this.markerController.markerManager
+      .allEntities()
+      .filter(entity => entity.marker !== null)
+      .map(entity => entity.state);
+  }
 
   setOnMarkerClickListener(listener: OnMarkerEventHandler | null): void {
     this.markerController.setOnClickListener(listener);

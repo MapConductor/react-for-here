@@ -6,6 +6,7 @@
  */
 import {
   MapProvider,
+  MarkerTilingOptions,
   type MapConfig,
   type MapViewControllerInterface,
   type GeoRectBounds,
@@ -37,6 +38,8 @@ export interface HereConfig extends MapConfig {
   pixelRatio?: number;
   /** Optional initial `H.service.Platform` (provided by the host page). */
   platform?: H.service.Platform;
+  /** Marker tiling options; large static marker sets render as a raster overlay. */
+  markerTilingOptions?: MarkerTilingOptions;
 }
 
 export class HereProvider extends MapProvider {
@@ -122,7 +125,10 @@ export class HereProvider extends MapProvider {
     const behavior = new H.mapevents.Behavior(mapEvents);
 
     const holder = new HereViewHolder(container, map, behavior);
-    const markerController = HereMarkerController.create(holder);
+    const markerController = HereMarkerController.create(
+      holder,
+      config.markerTilingOptions ?? MarkerTilingOptions.Default,
+    );
     const polylineController = new HerePolylineController(new HerePolylineOverlayRenderer(holder));
     const polygonController = new HerePolygonController(new HerePolygonOverlayRenderer(holder));
     const circleController = new HereCircleController(new HereCircleOverlayRenderer(holder));

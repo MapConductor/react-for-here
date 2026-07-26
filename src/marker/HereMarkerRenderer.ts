@@ -34,12 +34,38 @@ export class HereMarkerRenderer extends AbstractMarkerOverlayRenderer<
 > {
   readonly markerManager: MarkerManager<HereActualMarker>;
 
+  /**
+   * Whether the native HERE canvas markers should be visible. The 2D view
+   * fakes camera tilt with a CSS `rotateX` on the map container, which lays
+   * the canvas-drawn marker icons flat against the ground. While tilted the
+   * view hides these native markers (via `setNativeVisible(false)`) and draws
+   * upright, billboarded DOM icons instead. New markers created while hidden
+   * must inherit this state, so onAdd applies it too.
+   */
+  private nativeVisible = true;
+
   constructor(holder: HereViewHolder) {
     super({ holder });
     // Mirrors `MarkerManager.defaultManager<HereActualMarker>(minMarkerCount = ...)`
     this.markerManager = MarkerManager.defaultManager<HereActualMarker>();
     // HERE JS H.map.Marker visibility can be toggled via setVisibility().
     this.supportsAnimationOverlay = true;
+  }
+
+  /** Whether native markers should currently be visible (see `nativeVisible`). */
+  get isNativeVisible(): boolean {
+    return this.nativeVisible;
+  }
+
+  /**
+   * Remembers whether native markers should be visible so that markers added
+   * afterwards (see onAdd) inherit the state. NOTE: this renderer does not own
+   * the live marker entities — they live in the controller's MarkerManager — so
+   * toggling the visibility of existing markers is done by the controller
+   * (HereMarkerController.setNativeMarkersVisible), not here.
+   */
+  setNativeVisible(visible: boolean): void {
+    this.nativeVisible = visible;
   }
 
   /**
@@ -61,6 +87,8 @@ export class HereMarkerRenderer extends AbstractMarkerOverlayRenderer<
           });
           marker.draggable = state.draggable;
           this.holder.map.addObject(marker);
+          // Inherit the current native-visibility state (see nativeVisible).
+          if (!this.nativeVisible) marker.setVisibility(false);
           return marker as HereActualMarker;
         } catch (error) {
           console.error('[MapConductor] Failed to create HERE marker', error);
@@ -134,7 +162,11 @@ export class HereMarkerRenderer extends AbstractMarkerOverlayRenderer<
     entity: MarkerEntity<HereActualMarker>,
     visible: boolean,
   ): void {
-    entity.marker?.setVisibility(visible);
+    // The marker-animation overlay hides the native marker during a Drop/Bounce
+    // and restores it afterwards. While the CSS tilt hack is active, native
+    // markers must stay hidden (billboards are drawn instead), so never let the
+    // restore re-show a native marker while `nativeVisible` is false.
+    entity.marker?.setVisibility(visible && this.nativeVisible);
   }
 }
 

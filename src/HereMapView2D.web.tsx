@@ -17,11 +17,14 @@ import {
   type InfoBubbleEntry,
 } from '@mapconductor/js-sdk-react';
 import {
+  createDefaultIcon,
   type GeoPoint,
   type GeoRectBounds,
   type MapCameraPosition,
   type MapViewBaseProps,
   type MarkerAnimationOverlayEntry,
+  type MarkerState,
+  type MarkerTilingOptions,
   type OverlayCollector,
 } from '@mapconductor/js-sdk-core';
 import { HereProvider, type HereConfig } from './HereProvider';
@@ -35,6 +38,8 @@ export interface HereMapView2DProps extends MapViewBaseProps<HereViewStateInterf
   restrictBounds?: GeoRectBounds;
   /** Optional pixel ratio override (default: devicePixelRatio). */
   pixelRatio?: number;
+  /** Tiling options for large marker sets (renders them as a raster overlay). */
+  markerTilingOptions?: MarkerTilingOptions;
   /**
    * The HERE `H.service.Platform` instance configured with your credentials.
    * If omitted, a default unauthenticated platform is constructed. Provide
@@ -46,6 +51,95 @@ export interface HereMapView2DProps extends MapViewBaseProps<HereViewStateInterf
   containerStyle?: CSSProperties;
   onError?: (error: Error) => void;
   children?: ReactNode;
+}
+
+/**
+ * While the 2D view fakes tilt with a CSS `rotateX`, native HERE markers would
+ * be flattened against the ground, so they're hidden and their upright
+ * "billboards" are drawn here instead. This uses a single `<canvas>` (drawn on
+ * a rAF so markers stay glued to the map during pans/zooms) rather than one DOM
+ * `<img>` per marker — mounting tens of thousands of DOM nodes on tilt froze the
+ * main thread. Only *non-tiled* markers are drawn; tiled markers are painted by
+ * the raster tile layer, which HERE tilts natively. The canvas is draw-only
+ * (`pointer-events: none`); clicks flow through the map's tap handler, which
+ * hit-tests markers in tilt-aware screen space.
+ */
+function HereTiltMarkerCanvas({
+  controller,
+  active,
+}: {
+  controller: HereMapViewController;
+  active: boolean;
+}) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    if (!active) return;
+    const canvas = canvasRef.current;
+    const ctx = canvas?.getContext('2d');
+    if (!canvas || !ctx) return;
+
+    const images = new Map<string, HTMLImageElement>();
+    const imageFor = (url: string): HTMLImageElement | null => {
+      let img = images.get(url);
+      if (!img) {
+        img = new Image();
+        img.src = url;
+        images.set(url, img);
+      }
+      return img.complete && img.naturalWidth > 0 ? img : null;
+    };
+
+    let raf = 0;
+    const draw = () => {
+      const parent = canvas.parentElement;
+      const width = parent?.clientWidth ?? 0;
+      const height = parent?.clientHeight ?? 0;
+      const dpr = window.devicePixelRatio || 1;
+      if (canvas.width !== Math.round(width * dpr) || canvas.height !== Math.round(height * dpr)) {
+        canvas.width = Math.round(width * dpr);
+        canvas.height = Math.round(height * dpr);
+        canvas.style.width = `${width}px`;
+        canvas.style.height = `${height}px`;
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      ctx.clearRect(0, 0, width, height);
+
+      const holder = controller.holder;
+      const items = controller
+        .getNonTiledMarkerStates()
+        // Skip markers that are currently animating (Drop/Bounce): the
+        // screen-space animation overlay draws those, so drawing them here too
+        // would leave a static duplicate sitting behind the animated icon.
+        .filter((marker) => marker.getAnimation() == null)
+        .map((marker) => {
+          const bitmapIcon = (marker.icon ?? createDefaultIcon()).toBitmapIcon();
+          const screen = holder.toScreenOffset(marker.position);
+          return { bitmapIcon, x: screen.x, y: screen.y };
+        })
+        // Nearer markers (lower on screen) paint last so they overlap the ones
+        // behind them, matching the tilted perspective.
+        .sort((a, b) => a.y - b.y);
+
+      for (const { bitmapIcon, x, y } of items) {
+        const img = imageFor(bitmapIcon.url);
+        if (!img) continue;
+        const { width: w, height: h } = bitmapIcon.size;
+        ctx.drawImage(img, x - bitmapIcon.anchor.x * w, y - bitmapIcon.anchor.y * h, w, h);
+      }
+      raf = requestAnimationFrame(draw);
+    };
+    raf = requestAnimationFrame(draw);
+    return () => cancelAnimationFrame(raf);
+  }, [active, controller]);
+
+  if (!active) return null;
+  return (
+    <canvas
+      ref={canvasRef}
+      style={{ position: 'absolute', inset: 0, zIndex: 600, pointerEvents: 'none' }}
+    />
+  );
 }
 
 export function HereMapView2D({
@@ -61,6 +155,7 @@ export function HereMapView2D({
   restrictBounds,
   pixelRatio,
   platform,
+  markerTilingOptions,
   className,
   containerStyle,
   onError,
@@ -76,22 +171,42 @@ export function HereMapView2D({
   const bridgeUnsubs = useRef<(() => void)[]>([]);
   const [bubbleEntries, setBubbleEntries] = useState<InfoBubbleEntry[]>([]);
   const [animationEntries, setAnimationEntries] = useState<MarkerAnimationOverlayEntry[]>([]);
+  const [markerStates, setMarkerStates] = useState<MarkerState[]>([]);
   const [, setCameraTick] = useState(0);
   const [visualTilt, setVisualTilt] = useState(() => state.cameraPosition.tilt);
   const [visualBearing, setVisualBearing] = useState(() => state.cameraPosition.bearing);
   const experimentalTilt = Math.min(60, Math.abs(visualTilt));
-  const mapPlaneStyle: CSSProperties = {
-    position: 'absolute',
-    left: '50%',
-    top: '50%',
-    width: '200%',
-    height: '200%',
-    transform: `translate(-50%, -50%) rotateZ(${-visualBearing}deg) rotateX(${experimentalTilt}deg)`,
-    transformOrigin: '50% 50%',
-    transformStyle: 'flat',
-    willChange: 'transform',
-    backfaceVisibility: 'hidden',
-  };
+  // While tilted, the CSS `rotateX` below lays the native canvas markers flat
+  // against the ground. We hide them and draw upright DOM billboards instead.
+  const isTilted = experimentalTilt > 0.5;
+  // The oversized (200%) map plane exists only so the CSS rotateX/rotateZ tilt
+  // hack has content to fill the exposed edges. When the map is flat and
+  // north-up (the common case) it serves no purpose and actively hurts: it
+  // renders the map — and HERE's copyright/logo — into a plane twice the
+  // viewport that gets clipped, hiding the attribution and enlarging the map's
+  // internal pixel space (which threw off tap hit-testing). So only expand and
+  // transform the plane while actually tilted or rotated; otherwise fill the
+  // container exactly 1:1.
+  const usesTiltPlane = experimentalTilt > 0.5 || Math.abs(visualBearing) > 0.01;
+  const mapPlaneStyle: CSSProperties = usesTiltPlane
+    ? {
+        position: 'absolute',
+        left: '50%',
+        top: '50%',
+        width: '200%',
+        height: '200%',
+        transform: `translate(-50%, -50%) rotateZ(${-visualBearing}deg) rotateX(${experimentalTilt}deg)`,
+        transformOrigin: '50% 50%',
+        transformStyle: 'flat',
+        willChange: 'transform',
+        backfaceVisibility: 'hidden',
+      }
+    : {
+        position: 'absolute',
+        inset: 0,
+        width: '100%',
+        height: '100%',
+      };
 
   const onMapLoadedRef = useRef(onMapLoaded);
   const onMapClickRef = useRef(onMapClick);
@@ -115,6 +230,13 @@ export function HereMapView2D({
     return () => cancelAnimationFrame(frame);
   }, [experimentalTilt, visualBearing]);
 
+  // Swap between native canvas markers (untilted) and upright DOM billboards
+  // (tilted). markerStates is a dep so markers added while tilted are hidden
+  // as soon as they appear.
+  useEffect(() => {
+    typedControllerRef.current?.setNativeMarkersVisible(!isTilted);
+  }, [isTilted, markerStates]);
+
   useEffect(() => {
     if (!containerRef.current) return;
     let cancelled = false;
@@ -129,6 +251,7 @@ export function HereMapView2D({
       restrictBounds,
       pixelRatio,
       platform,
+      markerTilingOptions,
     };
 
     provider
@@ -137,6 +260,10 @@ export function HereMapView2D({
         if (cancelled) return;
         const ctrl = rawController as HereMapViewController;
         typedControllerRef.current = ctrl;
+        // Hide native markers up front when starting tilted so markers rendered
+        // by the overlay pipeline (below) are created already hidden, avoiding a
+        // flattened-icon flash before the billboard effect runs.
+        ctrl.setNativeMarkersVisible(experimentalTilt <= 0.5);
         state.setController(ctrl);
         state.setCameraPositionChangeListener((camera) => {
           setVisualTilt(camera.tilt);
@@ -144,6 +271,26 @@ export function HereMapView2D({
           setCameraTick((t) => t + 1);
         });
         setController(ctrl);
+
+        // HERE renders its logo + copyright (the `.H_imprint` block) inside the
+        // map's inner element — which is the CSS-transformed/oversized tilt
+        // plane, so while tilted the required attribution gets clipped and
+        // skewed. Move it into the untransformed outer container so the HERE
+        // logo and copyright stay visible and upright in every orientation.
+        const moveImprint = () => {
+          const outer = outerContainerRef.current;
+          const imprint = containerRef.current?.querySelector<HTMLElement>('.H_imprint');
+          if (!outer || !imprint) return;
+          // Drop any stale imprint left in the outer container by a previous
+          // map instance (e.g. after a design change re-init) before moving the
+          // current one, so attribution never stacks up.
+          outer.querySelectorAll(':scope > .H_imprint').forEach((el) => {
+            if (el !== imprint) el.remove();
+          });
+          if (imprint.parentElement !== outer) outer.appendChild(imprint);
+        };
+        moveImprint();
+        requestAnimationFrame(moveImprint);
 
         ctrl.setCameraMoveStartListener((camera: MapCameraPosition) => {
           setVisualTilt(camera.tilt);
@@ -181,6 +328,14 @@ export function HereMapView2D({
         bridgeUnsubs.current.push(
           scope.bubbleCollector.subscribe((entries) => {
             setBubbleEntries(Array.from(entries.values()));
+          }),
+        );
+
+        // Track marker states so the billboard overlay can draw upright icons
+        // at each marker's projected screen position while the view is tilted.
+        bridgeUnsubs.current.push(
+          scope.markerCollector.subscribe((states) => {
+            setMarkerStates(Array.from(states.values()));
           }),
         );
 
@@ -260,6 +415,7 @@ export function HereMapView2D({
           camera={typedControllerRef.current?.getCameraPosition() ?? state.cameraPosition}
           designAttributionRules={state.mapDesignType.attributionRules}
         />
+        {controller && <HereTiltMarkerCanvas controller={controller} active={isTilted} />}
         {animationEntries.length > 0 && typedControllerRef.current && (
           <div style={{ position: 'absolute', inset: 0, zIndex: 650, pointerEvents: 'none' }}>
             <MarkerAnimationLayer
