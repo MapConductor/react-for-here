@@ -9,13 +9,13 @@
  */
 import {
   AbstractPolylineOverlayRenderer,
+  densifyAndNormalize,
   type PolylineEntity,
   type PolylineState,
 } from '@mapconductor/js-sdk-core';
 import type { HereActualPolyline } from '../HereTypeAlias';
 import { HereViewHolder } from '../HereViewHolder';
 import { toGeoCoordinates } from '../GeoPoint';
-import { createInterpolatePoints, createLinearInterpolatePoints } from '../helpers';
 
 export class HerePolylineOverlayRenderer extends AbstractPolylineOverlayRenderer<
   HereViewHolder,
@@ -72,10 +72,10 @@ export class HerePolylineOverlayRenderer extends AbstractPolylineOverlayRenderer
 }
 
 function createGeoStrip(state: PolylineState): H.geo.LineString {
-  const points =
-    state.geodesic
-      ? createInterpolatePoints(state.points)
-      : createLinearInterpolatePoints(state.points);
+  // Core pipeline: densify (great-circle when geodesic, linear lat/lng
+  // otherwise — Android's straight-line semantics) and normalize into HERE's
+  // [-180, 180] longitude range.
+  const points = densifyAndNormalize(state.points, state.geodesic);
   const lineString = new H.geo.LineString();
   for (const point of points) {
     lineString.pushPoint(toGeoCoordinates(point));

@@ -2,12 +2,19 @@
  * Port of `HereCircleOverlayRenderer.kt` in
  * `android-for-here/.../circle/HereCircleOverlayRenderer.kt`.
  *
- * Android approximates the circle as a polygon because the HERE SDK for Mobile
- * lacks a dedicated circle primitive. The JS API exposes `H.map.Circle`, so
- * we use it directly while preserving the wrapper class name.
+ * Like Android (which approximates the circle as a `MapPolygon`), the circle
+ * is drawn as a polygon ring from the shared core geometry (`circleToRing`)
+ * instead of the native `H.map.Circle`, so the circle shape definition
+ * (geodesic vs planar) is unified across providers. The ring is unwrapped
+ * around the center longitude; HERE JS accepts out-of-range longitudes
+ * (verified against a ±180-crossing ring), so an antimeridian-crossing circle
+ * stays continuous without normalize + splitRingByMeridian (splitting also
+ * paints a stroke seam along the meridian).
  */
 import {
   AbstractCircleOverlayRenderer,
+  circleToRing,
+  closeRing,
   type CircleEntity,
   type CircleState,
 } from '@mapconductor/js-sdk-core';
@@ -20,19 +27,17 @@ export class HereCircleOverlayRenderer extends AbstractCircleOverlayRenderer<
   HereActualCircle
 > {
   override async createCircle(state: CircleState): Promise<HereActualCircle | null> {
-    const circle = new H.map.Circle(
-      toGeoCoordinates(state.center),
-      state.radiusMeters,
-      {
-        style: {
-          strokeColor: state.strokeColor,
-          fillColor: state.fillColor,
-          lineWidth: state.strokeWidth,
-        },
-        zIndex: coerceZIndex(state.zIndex ?? 0),
-        data: state.id,
+    const geometry = buildCircleGeometry(state);
+    if (!geometry) return null;
+    const circle = new H.map.Polygon(geometry, {
+      style: {
+        strokeColor: state.strokeColor,
+        fillColor: state.fillColor,
+        lineWidth: state.strokeWidth,
       },
-    );
+      zIndex: coerceZIndex(state.zIndex ?? 0),
+      data: state.id,
+    });
     this.holder.map.addObject(circle);
     return circle as HereActualCircle;
   }
@@ -54,8 +59,10 @@ export class HereCircleOverlayRenderer extends AbstractCircleOverlayRenderer<
       finger.radiusMeters !== prevFinger.radiusMeters ||
       finger.geodesic !== prevFinger.geodesic
     ) {
-      circle.setCenter(toGeoCoordinates(current.state.center));
-      circle.setRadius(current.state.radiusMeters);
+      // The polygon geometry cannot be mutated in place; rebuild the object
+      // (mirrors HerePolygonOverlayRenderer's geometry-change path).
+      this.holder.map.removeObject(circle);
+      return await this.createCircle(current.state);
     }
 
     if (
@@ -82,6 +89,18 @@ export class HereCircleOverlayRenderer extends AbstractCircleOverlayRenderer<
   ): Promise<void> {
     if (entity.circle) this.holder.map.removeObject(entity.circle);
   }
+}
+
+function buildCircleGeometry(state: CircleState): H.geo.Polygon | null {
+  const ring = closeRing(
+    circleToRing(state.center, state.radiusMeters, state.geodesic),
+  );
+  if (ring.length < 4) return null;
+  const lineString = new H.geo.LineString();
+  for (const point of ring) {
+    lineString.pushPoint(toGeoCoordinates(point));
+  }
+  return new H.geo.Polygon(lineString);
 }
 
 function coerceZIndex(zIndex: number): number {

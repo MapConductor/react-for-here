@@ -10,16 +10,15 @@
  *   com.here.sdk.mapview.MapPolyline       -> H.map.Polyline
  *   com.here.sdk.mapview.MapView           -> H.Map
  *
- * NOTE: In the Android file, `HereActualCircle = MapPolygon` because HERE SDK
- * for Mobile does not expose a circle type — circles are rendered as a polygon
- * approximation. In the JS API `H.map.Circle` exists natively, so we use it
- * directly. The wrapper name (`HereActualCircle`) is still kept to match the
- * Android typealias.
+ * NOTE: Like Android (`HereActualCircle = MapPolygon`), circles are rendered
+ * as a polygon approximation built from the shared core geometry
+ * (`circleToRing`) instead of the native `H.map.Circle`, so the circle shape
+ * definition (geodesic vs planar) is unified across providers.
  */
 import type { HereGroundImageHandle } from './groundimage/HereGroundImageHandle';
 
 export type HereActualMarker = H.map.Marker;
-export type HereActualCircle = H.map.Circle;
+export type HereActualCircle = H.map.Polygon;
 export type HereActualPolyline = H.map.Polyline;
 export type HereActualPolygon = H.map.Polygon;
 export type HereActualGroundImage = HereGroundImageHandle;

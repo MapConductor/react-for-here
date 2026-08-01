@@ -9,13 +9,13 @@
  */
 import {
   AbstractPolygonOverlayRenderer,
+  densifyAndNormalize,
   type PolygonEntity,
   type PolygonState,
 } from '@mapconductor/js-sdk-core';
 import type { HereActualPolygon } from '../HereTypeAlias';
 import { HereViewHolder } from '../HereViewHolder';
 import { toGeoCoordinates } from '../GeoPoint';
-import { createInterpolatePoints } from '../helpers';
 
 export class HerePolygonOverlayRenderer extends AbstractPolygonOverlayRenderer<
   HereViewHolder,
@@ -95,8 +95,10 @@ function buildLineString(
   geodesic: boolean,
 ): H.geo.LineString {
   const lineString = new H.geo.LineString();
-  const interpolated = geodesic ? createInterpolatePoints(points) : points;
-  for (const point of interpolated) {
+  // Core pipeline: densify (great-circle when geodesic, linear lat/lng
+  // otherwise — Android's straight-line semantics) and normalize into HERE's
+  // [-180, 180] longitude range.
+  for (const point of densifyAndNormalize(points, geodesic)) {
     lineString.pushPoint(toGeoCoordinates(point));
   }
   return lineString;
