@@ -14,6 +14,7 @@ import {
   MapViewScopeProvider,
   MarkerAnimationLayer,
   MapAttributionOverlay,
+  useMapUISettings,
   type InfoBubbleEntry,
 } from '@mapconductor/js-sdk-react';
 import {
@@ -392,6 +393,8 @@ export function HereMapView2D({
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.mapDesignType.id, minZoom, maxZoom, restrictBounds]);
+
+  useMapUISettings(state, controller);
 
   return (
     <MapContext.Provider value={{ controller, isReady }}>

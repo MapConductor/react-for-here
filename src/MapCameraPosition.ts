@@ -44,12 +44,20 @@ export interface HereDisplayCamera {
  * cannot represent directly), shifts the ground target forward and renders
  * with abs(tilt), exactly like the Android implementation.
  */
-export function toHereDisplayCamera(position: MapCameraPosition): HereDisplayCamera {
+export function toHereDisplayCamera(
+  position: MapCameraPosition,
+  { snapZoom = true }: { snapZoom?: boolean } = {},
+): HereDisplayCamera {
   if (position.tilt >= 0) {
+    // fitBounds passes snapZoom:false: its zoom is a computed fit that must stay
+    // fractional, otherwise rounding to an integer level breaks the fit (bounds
+    // no longer touch the padded viewport edges and padding has no visible
+    // effect, since padding only shifts zoom by a fraction of a level).
+    const googleZoom = snapZoom ? snapZoomToGoogle(position.zoom) : position.zoom;
     return {
       target: createGeoPoint({ latitude: position.position.latitude, longitude: position.position.longitude }),
       tiltDeg: position.tilt,
-      hereZoomLevel: ZoomAltitudeConverter.googleZoomToHereZoom(snapZoomToGoogle(position.zoom), position.position.latitude),
+      hereZoomLevel: ZoomAltitudeConverter.googleZoomToHereZoom(googleZoom, position.position.latitude),
       bearing: position.bearing,
     };
   }
@@ -89,8 +97,11 @@ export function toHereDisplayCamera(position: MapCameraPosition): HereDisplayCam
 }
 
 /** Mirrors `MapCameraPosition.toMapCameraUpdate()` in Android. */
-export function toHereLookAtData(position: MapCameraPosition): H.map.ViewLookAtData {
-  const display = toHereDisplayCamera(position);
+export function toHereLookAtData(
+  position: MapCameraPosition,
+  options: { snapZoom?: boolean } = {},
+): H.map.ViewLookAtData {
+  const display = toHereDisplayCamera(position, options);
   return {
     position: toGeoCoordinates(display.target),
     zoom: display.hereZoomLevel,

@@ -234,10 +234,7 @@ export class HereMarkerController extends AbstractMarkerController<HereActualMar
 
     this.tileRouteId ??= `mc-here-tile-${generateId()}`;
     const server = LocalTileServer.startServer();
-    const renderer = new MarkerTileRenderer<MarkerState>(tiledStates, {
-      tileSize: 256,
-      iconScaleCallback: this.tilingOptions.iconScaleCallback ?? undefined,
-    });
+    const renderer = new MarkerTileRenderer<MarkerState>(tiledStates, 256, this.tilingOptions.iconScaleCallback ?? undefined);
     this.tileRenderer = renderer;
     this.tileVersion++;
     server.register(this.tileRouteId, renderer);

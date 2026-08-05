@@ -7,8 +7,15 @@
  * `RasterDataSource` + `MapLayerBuilder`.
  *
  * First version supports the `UrlTemplate` and `ArcGisService` source variants
- * (TMS/XYZ). The Android opacity proxy (`HereRasterTileProxyProvider`) is
- * omitted in the basic version; opacity is forwarded directly to the layer.
+ * (TMS/XYZ).
+ *
+ * Opacity is applied on the `ImageTileProvider` (its `opacity` constructor
+ * option / `setOpacity()`), NOT on the `TileLayer`: in the HERE Maps JS API the
+ * opacity lives on the provider — `H.map.layer.TileLayer`/`Layer` have no
+ * opacity method — so passing `{ opacity }` to the layer (as this used to)
+ * silently did nothing and the raster always rendered fully opaque. This makes
+ * the Android per-tile alpha proxy (`HereRasterTileProxyProvider`) unnecessary
+ * on the web.
  */
 import {
   TileScheme,
@@ -50,13 +57,12 @@ export class HereRasterLayerOverlayRenderer
       data.map(async (p) => {
         const prev = p.prev;
         const next = p.current.state;
-        if (
-          prev.fingerPrint.source !== p.current.fingerPrint.source ||
-          prev.state.opacity !== next.opacity
-        ) {
+        if (prev.fingerPrint.source !== p.current.fingerPrint.source) {
           await this.removeLayer(prev);
           return await this.addLayer(next);
         }
+        // Opacity and visibility are updated in place (opacity via the
+        // provider's setOpacity) so the slider doesn't reload every tile.
         this.updateLayer(prev.layer, next);
         return prev.layer;
       }),
@@ -77,10 +83,12 @@ export class HereRasterLayerOverlayRenderer
     const spec = resolveTileSpec(state);
     if (!spec) return null;
 
-    const provider = createUrlTileProvider(spec);
+    const provider = createUrlTileProvider(spec, state.opacity);
     if (!provider) return null;
 
-    const tileLayer = new H.map.layer.TileLayer(provider, { opacity: state.opacity });
+    // Opacity is carried by the provider (see file header); the TileLayer takes
+    // no opacity option.
+    const tileLayer = new H.map.layer.TileLayer(provider);
     const attached = state.visible !== false;
     if (attached) {
       this.holder.map.addLayer(tileLayer);
@@ -96,6 +104,13 @@ export class HereRasterLayerOverlayRenderer
   }
 
   private updateLayer(handle: ActualRasterLayer, state: RasterLayerState): void {
+    // Opacity lives on the provider; setOpacity invalidates the tiles so the
+    // map re-renders at the new opacity without recreating the layer.
+    const provider = handle.layer.getProvider() as Partial<HereOpacityProvider>;
+    if (typeof provider.setOpacity === 'function') {
+      provider.setOpacity(clampOpacity(state.opacity));
+    }
+
     const shouldAttach = state.visible !== false;
     if (shouldAttach === handle.attached) return;
     if (shouldAttach) {
@@ -143,8 +158,28 @@ function resolveTileSpec(state: RasterLayerState): TileSpec | null {
   }
 }
 
-function createUrlTileProvider(spec: TileSpec): H.map.Provider | null {
-  const ImageTileProviderCtor = (H.map as any).provider?.ImageTileProvider;
+// `H.map.provider.ImageTileProvider` is part of the HERE Maps API but is not
+// declared in this package's intentionally-minimal ambient typings (here.d.ts),
+// so reach it through a narrowly-typed structural cast instead of `any`. In the
+// HERE JS API opacity is a provider capability (`opacity` option + setOpacity()).
+type HereOpacityProvider = H.map.Provider & { setOpacity(opacity: number): void };
+type ImageTileProviderConstructor = new (options: {
+  tileSize: number;
+  min?: number;
+  max?: number;
+  opacity?: number;
+  getURL: (x: number, y: number, z: number) => string;
+}) => HereOpacityProvider;
+
+function clampOpacity(opacity: number): number {
+  if (!Number.isFinite(opacity)) return 1;
+  return Math.min(1, Math.max(0, opacity));
+}
+
+function createUrlTileProvider(spec: TileSpec, opacity: number): H.map.Provider | null {
+  const ImageTileProviderCtor = (
+    H.map as unknown as { provider?: { ImageTileProvider?: ImageTileProviderConstructor } }
+  ).provider?.ImageTileProvider;
   if (typeof ImageTileProviderCtor !== 'function') return null;
 
   const buildUrl = (x: number, y: number, z: number) => {
@@ -167,6 +202,7 @@ function createUrlTileProvider(spec: TileSpec): H.map.Provider | null {
       tileSize: spec.tileSize,
       min: spec.minZoom ?? undefined,
       max: spec.maxZoom ?? undefined,
+      opacity: clampOpacity(opacity),
       getURL: buildUrl,
     });
     return provider as H.map.Provider;

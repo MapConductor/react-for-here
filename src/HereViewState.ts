@@ -16,6 +16,7 @@ import {
   type GeoPoint,
   type MapCameraPosition,
   type MapViewControllerInterface,
+  type GeoRectBounds,
   type MapViewHolder,
   type MapViewStateInterface,
 } from '@mapconductor/js-sdk-core';
@@ -95,6 +96,10 @@ export class HereViewState
 
   override getMapViewHolder(): MapViewHolder<unknown, unknown> | null {
     return this._controller?.holder ?? null;
+  }
+
+  override fitBounds(bounds: GeoRectBounds, padding: number = 0): void {
+    void this._controller?.fitBounds(bounds, { padding });
   }
 
   /** Called by `HereMapView2D` when the controller is ready (mirrors `setController`). */

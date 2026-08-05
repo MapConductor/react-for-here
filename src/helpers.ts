@@ -1,10 +1,10 @@
 /**
- * Re-exports shared spherical interpolation helpers so the HERE renderer
- * modules can import them from a single local path (mirrors the
- * `com.mapconductor.core.spherical.createInterpolatePoints` imports in the
- * Android renderer files).
+ * Re-exports the line-model namespaces so the HERE renderer modules can import
+ * them from a single local path. Densify a path with
+ * `WGS84Geodesic.createInterpolatePoints` (geodesic) or
+ * `Planar.createInterpolatePoints` (straight lines).
  */
 export {
-  createInterpolatePoints,
-  createLinearInterpolatePoints,
+  WGS84Geodesic,
+  Planar,
 } from '@mapconductor/js-sdk-core';

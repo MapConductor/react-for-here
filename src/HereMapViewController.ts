@@ -25,6 +25,10 @@
  */
 import {
   BaseMapViewController,
+  DefaultMapUISettings,
+  MapUISettingsDiagnostics,
+  type MapUISettings,
+  computeFitBoundsCameraPosition,
   createGeoPoint,
   createGeoRectBounds,
   type CameraOptions,
@@ -162,6 +166,36 @@ export class HereMapViewController
     if (camera) void this.notifyControllersCameraChanged(camera);
   }
 
+  private uiSettings: MapUISettings = { ...DefaultMapUISettings };
+
+  /**
+   * `Behavior` takes a bitmask of the gestures to switch, so pan and the three
+   * zoom gestures can be gated individually.
+   *
+   * The map runs on the P2D engine and MapConductor fakes bearing and tilt with
+   * a CSS transform on top of it, so there is no rotate or tilt gesture here.
+   */
+  applyUISettings(settings: MapUISettings): void {
+    this.uiSettings = settings;
+    const Feature = H.mapevents.Behavior.Feature;
+    const behavior = this.holder.behavior;
+    const zoom = Feature.WHEEL_ZOOM | Feature.DBL_TAP_ZOOM | Feature.PINCH_ZOOM;
+
+    if (settings.scrollGesture) behavior.enable(Feature.PANNING);
+    else behavior.disable(Feature.PANNING);
+    if (settings.zoomGesture) behavior.enable(zoom);
+    else behavior.disable(zoom);
+
+    MapUISettingsDiagnostics.warnIfRequested(
+      settings.rotateGesture, 'rotate', 'HERE',
+      'the 2D web view fakes bearing with a CSS transform, so there is no rotate gesture',
+    );
+    MapUISettingsDiagnostics.warnIfRequested(
+      settings.tiltGesture, 'tilt', 'HERE',
+      'the 2D web view fakes tilt with a CSS transform, so there is no tilt gesture',
+    );
+  }
+
   // ----- setup ---------------------------------------------------------------
 
   /**
@@ -200,15 +234,31 @@ export class HereMapViewController
   getVisualBearing(): number { return this.logicalBearing; }
 
   moveCamera(position: MapCameraPosition): Promise<boolean> {
-    this.setLogicalCamera(position);
-    const lookAt = this.constrainLookAt(toHereLookAtData(position));
-    this.holder.map.getViewModel().setLookAtData(lookAt, false);
-    return Promise.resolve(true);
+    return this.applyCamera(position, { animated: false });
   }
 
   animateCamera(position: MapCameraPosition, _options?: CameraOptions): Promise<boolean> {
+    return this.applyCamera(position, { animated: true });
+  }
+
+  /**
+   * Shared camera commit for moveCamera/animateCamera/fitBounds.
+   *
+   * `snapZoom` defaults to true so explicit camera targets quantize their zoom
+   * to match the Google Maps 2D reference (see `snapZoomToGoogle`). fitBounds
+   * passes false to keep its computed fractional zoom, so the bounds actually
+   * fit the padded viewport.
+   */
+  private applyCamera(
+    position: MapCameraPosition,
+    { animated, snapZoom = true }: { animated: boolean; snapZoom?: boolean },
+  ): Promise<boolean> {
     this.setLogicalCamera(position);
-    const lookAt = this.constrainLookAt(toHereLookAtData(position));
+    const lookAt = this.constrainLookAt(toHereLookAtData(position, { snapZoom }));
+    if (!animated) {
+      this.holder.map.getViewModel().setLookAtData(lookAt, false);
+      return Promise.resolve(true);
+    }
     this.isAnimatingCamera = true;
     this.holder.map.getViewModel().setLookAtData(lookAt, true);
     // HERE JS does not expose an animation-end callback on setLookAtData
@@ -224,11 +274,27 @@ export class HereMapViewController
     return Promise.resolve(true);
   }
 
-  fitBounds(bounds: GeoRectBounds, _options?: CameraOptions): Promise<boolean> {
-    const rect = toGeoRect(bounds);
-    if (!rect) return Promise.resolve(false);
-    this.holder.map.getViewModel().setLookAtData({ bounds: rect }, false);
-    return Promise.resolve(true);
+  // Unified fit: the core computes center + zoom; moveCamera keeps the current
+  // heading/tilt (HERE's setLookAtData({ bounds }) would reset to top-down).
+  fitBounds(bounds: GeoRectBounds, options?: CameraOptions): Promise<boolean> {
+    if (!bounds.southWest || !bounds.northEast) return Promise.resolve(false);
+    const current = this.getCameraPosition();
+    if (!current) return Promise.resolve(false);
+    const viewport = this.holder.mapView.parentElement;
+    const width = viewport?.clientWidth ?? this.holder.map.getViewPort().width;
+    const height = viewport?.clientHeight ?? this.holder.map.getViewPort().height;
+    const fit = computeFitBoundsCameraPosition({
+      bounds,
+      viewportWidthPx: width,
+      viewportHeightPx: height,
+      padding: typeof options?.padding === 'number' ? options.padding : 0,
+      bearing: current.bearing,
+    });
+    if (!fit) return Promise.resolve(false);
+    const target = current.copy({ position: fit.center, zoom: fit.zoom });
+    // snapZoom:false — keep the fractional fit zoom so the bounds fit precisely
+    // and `padding` has a visible effect.
+    return this.applyCamera(target, { animated: !!options?.duration, snapZoom: false });
   }
 
   getCameraPosition(): MapCameraPosition | null {
@@ -495,6 +561,8 @@ export class HereMapViewController
     this.markerController.setSelectedMarker(null);
     this.markerDragOffset = null;
     this.holder.behavior.enable();
+    // `enable()` turns every gesture back on, including any the app disabled.
+    this.applyUISettings(this.uiSettings);
   }
 
   private toGeoPointFromEvent(event: H.map.MapEvent): GeoPoint | null {
@@ -773,3 +841,4 @@ export type { OnMapEventHandler };
 function clamp(value: number, min?: number, max?: number): number {
   return Math.min(max ?? Infinity, Math.max(min ?? -Infinity, value));
 }
+

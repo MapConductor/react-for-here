@@ -415,8 +415,22 @@ declare global {
       // default pan/zoom/tilt gestures.
       class Behavior {
         constructor(events: MapEvents, options?: Record<string, unknown>);
-        disable(): void;
-        enable(): void;
+        // Called with no argument for every gesture, or with a bitmask of
+        // `Behavior.Feature` values for individual ones.
+        disable(features?: number): void;
+        enable(features?: number): void;
+      }
+
+      namespace Behavior {
+        const Feature: {
+          PANNING: number;
+          WHEEL_ZOOM: number;
+          DBL_TAP_ZOOM: number;
+          PINCH_ZOOM: number;
+          TILT: number;
+          HEADING: number;
+          FRACTIONAL_ZOOM: number;
+        };
       }
     }
 
