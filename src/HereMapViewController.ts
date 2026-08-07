@@ -25,13 +25,9 @@
  */
 import {
   BaseMapViewController,
-  MapUISettingsDiagnostics,
   MapUISettings,
   computeFitBoundsCameraPosition,
-  createGeoPoint,
-  createGeoRectBounds,
   type CircleState,
-  type GeoPoint,
   type GeoRectBounds,
   type GroundImageState,
   type MapCameraPosition,
@@ -47,7 +43,6 @@ import {
   type PolygonState,
   type PolylineState,
   type RasterLayerState,
-  type VisibleRegion,
   type CameraRestriction,
   isEmptyCameraRestriction,
 } from '@mapconductor/js-sdk-core';
@@ -57,21 +52,29 @@ import type {
   HereMapViewControllerInterface,
 } from './HereMapViewControllerInterface';
 import { HereViewHolder } from './HereViewHolder';
-import {
-  mapCameraPositionFrom,
-  toHereLookAtData,
-} from './MapCameraPosition';
-import { toGeoPoint } from './GeoPoint';
-import { toGeoRect } from './GeoRectBounds';
-import { getHerePlatform } from './HereViewControllerStore';
 import { HereMarkerController } from './marker/HereMarkerController';
 import { HerePolylineController } from './polyline/HerePolylineController';
 import { HerePolygonController } from './polygon/HerePolygonController';
 import { HereCircleController } from './circle/HereCircleController';
 import { HereGroundImageController } from './groundimage/HereGroundImageController';
 import { HereRasterLayerController } from './raster/HereRasterLayerController';
+import { HereCameraConstraints } from './HereCameraConstraints';
+import { readVisibleRegion } from './HereVisibleRegion';
+import { HereCameraState } from './HereCameraState';
+import {
+  applyGestureSettings,
+  applyMapDesignType,
+  type SettingsDeps,
+} from './HereMapSettings';
+import {
+  handleMapClick,
+  handleMapLongClick,
+  handleMarkerDrag,
+  handleMarkerDragEnd,
+  handleMarkerDragStart,
+  type GestureDeps,
+} from './HereGestureHandlers';
 
-const CAMERA_MOVE_END_IDLE_MS = 120;
 
 export class HereMapViewController
   extends BaseMapViewController
@@ -85,34 +88,49 @@ export class HereMapViewController
   private readonly groundImageController: HereGroundImageController;
   private readonly circleController: HereCircleController;
   private readonly rasterLayerController: HereRasterLayerController;
-  private minZoom?: number;
-  private maxZoom?: number;
-  private restrictBounds?: GeoRectBounds;
 
   private initialized = false;
   private destroyed = false;
-  private logicalTilt = 0;
-  private logicalPosition = createGeoPoint({ latitude: 0, longitude: 0 });
-  private logicalZoom = 0;
-  private logicalBearing = 0;
-  private isAnimatingCamera = false;
-  private cameraMoveInProgress = false;
-  private cameraMoveEndTimer: ReturnType<typeof setTimeout> | null = null;
-  private constraintFrame: number | null = null;
-  private lastReportedCamera: MapCameraPosition | null = null;
 
-  private mapDesignType: HereMapDesignType;
-  private mapDesignTypeChangeListener: HereMapDesignTypeChangeHandler | null = null;
-  private markerDragOffset: { x: number; y: number } | null = null;
+  /** 範囲・ズーム制限のクランプ。状態を持つのでコンストラクタで組み立てて注入する。 */
+  private readonly constraints: HereCameraConstraints;
 
-  private readonly onMapChangeHandler = () => this.onMapChange();
-  private readonly onMapChangeEndHandler = () => this.onMapChangeEnd();
-  private readonly onMapClickHandler = (event: H.map.MapEvent) => this.onMapClick(event);
-  private readonly onMapLongClickHandler = (event: H.map.MapEvent) => this.onMapLongClick(event);
+  /** 論理カメラの保持とカメラ変化の解釈。同じくコンストラクタで組み立てる。 */
+  private readonly camera: HereCameraState;
+
+  private readonly mapDesignType: { current: HereMapDesignType };
+  private readonly mapDesignTypeChangeListener: { current: HereMapDesignTypeChangeHandler | null } = { current: null };
+  /** ドラッグ中だけ使う、掴んだ点とマーカー中心のずれ。 */
+  private readonly markerDragOffset: { current: { x: number; y: number } | null } = { current: null };
+
+  /** ジェスチャー処理へ渡す依存一式。private を覗かせずに必要なものだけ束ねる。 */
+  private get gestureDeps(): GestureDeps {
+    return {
+      holder: this.holder,
+      markerController: this.markerController,
+      circleController: this.circleController,
+      polylineController: this.polylineController,
+      polygonController: this.polygonController,
+      uiSettings: this.uiSettings,
+      dragOffset: this.markerDragOffset,
+      getCameraPosition: () => this.getCameraPosition(),
+      getVisualTilt: () => this.getVisualTilt(),
+      getVisualBearing: () => this.getVisualBearing(),
+      applyUISettings: (settings) => this.applyUISettings(settings),
+      onMapClick: (point) => this.notifyMapClick(point),
+      onMapLongClick: (point) => this.notifyMapLongClick(point),
+    };
+  }
+
+  private readonly onMapChangeHandler = () => this.camera.onChange();
+  private readonly onMapChangeEndHandler = () => this.camera.onChangeEnd();
+  private readonly onMapClickHandler = (event: H.map.MapEvent) => handleMapClick(this.gestureDeps, event);
+  private readonly onMapLongClickHandler = (event: H.map.MapEvent) =>
+    handleMapLongClick(this.gestureDeps, event);
   private readonly onMarkerDragStartHandler = (event: H.map.MapEvent) =>
-    this.onMarkerDragStart(event);
-  private readonly onMarkerDragHandler = (event: H.map.MapEvent) => this.onMarkerDrag(event);
-  private readonly onMarkerDragEndHandler = (event: H.map.MapEvent) => this.onMarkerDragEnd(event);
+    handleMarkerDragStart(this.gestureDeps, event);
+  private readonly onMarkerDragHandler = (event: H.map.MapEvent) => handleMarkerDrag(this.gestureDeps, event);
+  private readonly onMarkerDragEndHandler = (event: H.map.MapEvent) => handleMarkerDragEnd(this.gestureDeps, event);
 
   constructor({
     holder,
@@ -147,54 +165,65 @@ export class HereMapViewController
     this.groundImageController = groundImageController;
     this.circleController = circleController;
     this.rasterLayerController = rasterLayerController;
-    this.minZoom = minZoom;
-    this.maxZoom = maxZoom;
-    this.restrictBounds = restrictBounds;
-    this.mapDesignType = initialMapDesignType;
+    this.constraints = new HereCameraConstraints(
+      { map: this.holder.map, getVisibleRegion: () => readVisibleRegion(this.holder) },
+      { bounds: restrictBounds, minZoom, maxZoom },
+    );
+    this.camera = new HereCameraState({
+      holder: this.holder,
+      constraints: this.constraints,
+      onCameraMoveStart: (c) => this.notifyCameraMoveStart(c),
+      onCameraMove: (c) => this.notifyCameraMove(c),
+      onCameraMoveEnd: (c) => this.notifyCameraMoveEnd(c),
+      onCameraSettled: (c) => this.notifyControllersCameraChanged(c),
+    });
+    this.mapDesignType = { current: initialMapDesignType };
     // Tiled markers render into a raster overlay driven by the raster controller.
     this.markerController.onRasterLayerUpdate = async state => {
       if (state) await this.rasterLayerController.composition([state]);
       else await this.rasterLayerController.clear();
     };
-    const initialLookAt = holder.map.getViewModel().getLookAtData();
-    this.logicalPosition = toGeoPoint(initialLookAt.position);
-    this.logicalZoom = initialLookAt.zoom;
+    this.camera.seed(holder.map.getViewModel().getLookAtData());
     holder.setController(this);
     this.setupListeners();
-    this.enforceCameraConstraints();
+    this.constraints.enforce();
     const camera = this.getCameraPosition();
     if (camera) void this.notifyControllersCameraChanged(camera);
   }
 
   private uiSettings: MapUISettings = { ...MapUISettings.Default };
 
-  /**
-   * `Behavior` takes a bitmask of the gestures to switch, so pan and the three
-   * zoom gestures can be gated individually.
-   *
-   * The map runs on the P2D engine and MapConductor fakes bearing and tilt with
-   * a CSS transform on top of it, so there is no rotate or tilt gesture here.
-   */
-  applyUISettings(settings: MapUISettings): void {
-    this.uiSettings = settings;
-    const Feature = H.mapevents.Behavior.Feature;
-    const behavior = this.holder.behavior;
-    const zoom = Feature.WHEEL_ZOOM | Feature.DBL_TAP_ZOOM | Feature.PINCH_ZOOM;
-
-    if (settings.scrollGesture) behavior.enable(Feature.PANNING);
-    else behavior.disable(Feature.PANNING);
-    if (settings.zoomGesture) behavior.enable(zoom);
-    else behavior.disable(zoom);
-
-    MapUISettingsDiagnostics.warnIfRequested(
-      settings.rotateGesture, 'rotate', 'HERE',
-      'the 2D web view fakes bearing with a CSS transform, so there is no rotate gesture',
-    );
-    MapUISettingsDiagnostics.warnIfRequested(
-      settings.tiltGesture, 'tilt', 'HERE',
-      'the 2D web view fakes tilt with a CSS transform, so there is no tilt gesture',
-    );
+  /** 設定反映へ渡す依存一式。private を覗かせずに必要なものだけ束ねる。 */
+  private get settingsDeps(): SettingsDeps {
+    return {
+      holder: this.holder,
+      designType: this.mapDesignType,
+      designTypeListener: this.mapDesignTypeChangeListener,
+    };
   }
+
+  applyUISettings(settings: MapUISettings): void {
+    this.uiSettings = { ...settings };
+    applyGestureSettings(this.settingsDeps, settings);
+  }
+
+  setMapDesignType(value: HereMapDesignType): void {
+    applyMapDesignType(this.settingsDeps, value);
+  }
+
+  setMapDesignTypeChangeListener(
+    listener: HereMapDesignTypeChangeHandler,
+    onMapInitialized?: OnMapInitializedHandler,
+  ): void {
+    this.mapDesignTypeChangeListener.current = listener;
+    listener(this.mapDesignType.current);
+    // Mirrors Android's notifyMapInitialized() inside onMapCameraUpdated.
+    if (onMapInitialized && !this.initialized) {
+      this.initialized = true;
+      onMapInitialized();
+    }
+  }
+
 
   // ----- setup ---------------------------------------------------------------
 
@@ -229,49 +258,18 @@ export class HereMapViewController
 
   // ----- camera (mirrors moveCamera / animateCamera / fitBounds) -------------
 
-  getVisualTilt(): number { return Math.min(60, Math.abs(this.logicalTilt)); }
+  getCameraPosition(): MapCameraPosition | null { return this.camera.read(); }
 
-  getVisualBearing(): number { return this.logicalBearing; }
+  getVisualTilt(): number { return this.camera.visualTilt; }
+
+  getVisualBearing(): number { return this.camera.visualBearing; }
 
   moveCamera(position: MapCameraPosition): Promise<boolean> {
-    return this.applyCamera(position, { animated: false });
+    return this.camera.apply(position, { animated: false });
   }
 
   animateCamera(position: MapCameraPosition, _durationMillis: number): Promise<boolean> {
-    return this.applyCamera(position, { animated: true });
-  }
-
-  /**
-   * Shared camera commit for moveCamera/animateCamera/fitBounds.
-   *
-   * `snapZoom` defaults to true so explicit camera targets quantize their zoom
-   * to match the Google Maps 2D reference (see `snapZoomToGoogle`). fitBounds
-   * passes false to keep its computed fractional zoom, so the bounds actually
-   * fit the padded viewport.
-   */
-  private applyCamera(
-    position: MapCameraPosition,
-    { animated, snapZoom = true }: { animated: boolean; snapZoom?: boolean },
-  ): Promise<boolean> {
-    this.setLogicalCamera(position);
-    const lookAt = this.constrainLookAt(toHereLookAtData(position, { snapZoom }));
-    if (!animated) {
-      this.holder.map.getViewModel().setLookAtData(lookAt, false);
-      return Promise.resolve(true);
-    }
-    this.isAnimatingCamera = true;
-    this.holder.map.getViewModel().setLookAtData(lookAt, true);
-    // HERE JS does not expose an animation-end callback on setLookAtData
-    // directly. Recover via the next mapviewchangeend event.
-    const map = this.holder.map;
-    const handler = () => {
-      map.removeEventListener('mapviewchangeend', handler as never);
-      this.isAnimatingCamera = false;
-      const camera = this.getCameraPosition();
-      if (camera) this.notifyCameraMoveEnd(camera);
-    };
-    map.addEventListener('mapviewchangeend', handler as never);
-    return Promise.resolve(true);
+    return this.camera.apply(position, { animated: true });
   }
 
   // Unified fit: the core computes center + zoom; moveCamera keeps the current
@@ -294,88 +292,16 @@ export class HereMapViewController
     const target = current.copy({ position: fit.center, zoom: fit.zoom });
     // snapZoom:false — keep the fractional fit zoom so the bounds fit precisely
     // and `padding` has a visible effect.
-    return this.applyCamera(target, { animated: false, snapZoom: false });
-  }
-
-  getCameraPosition(): MapCameraPosition | null {
-    const lookAt = this.holder.map.getViewModel().getLookAtData();
-    const usesNegativeTiltOffset = this.logicalTilt < 0;
-    const logical = mapCameraPositionFrom({
-      position: usesNegativeTiltOffset ? this.logicalPosition : toGeoPoint(lookAt.position),
-      zoom: usesNegativeTiltOffset ? this.logicalZoom : lookAt.zoom,
-      bearing: this.logicalBearing,
-      tilt: this.logicalTilt,
-    });
-    const visibleRegion = this.getVisibleRegion();
-    return visibleRegion ? logical.copy({ visibleRegion }) : logical;
+    return this.camera.apply(target, { animated: false, snapZoom: false });
   }
 
 
-  /**
-   * Mirrors `getMapCameraPosition(cameraState)` in Android: projects the four
-   * screen corners back to geo coordinates instead of using
-   * `map.getBounds()`'s axis-aligned box, so the visible region stays correct
-   * when the map is rotated.
-   */
-  private getVisibleRegion(): VisibleRegion | null {
-    const viewport = this.holder.mapView.parentElement;
-    const width = viewport?.clientWidth ?? this.holder.map.getViewPort().width;
-    const height = viewport?.clientHeight ?? this.holder.map.getViewPort().height;
-    if (!width || !height) return null;
 
-    const nearLeft = this.holder.fromScreenOffsetSync({ x: 0, y: height });
-    const nearRight = this.holder.fromScreenOffsetSync({ x: width, y: height });
-    const farLeft = this.holder.fromScreenOffsetSync({ x: 0, y: 0 });
-    const farRight = this.holder.fromScreenOffsetSync({ x: width, y: 0 });
-    if (!nearLeft || !nearRight || !farLeft || !farRight) return null;
 
-    const bounds = createGeoRectBounds();
-    bounds.extend(nearLeft);
-    bounds.extend(nearRight);
-    bounds.extend(farLeft);
-    bounds.extend(farRight);
-
-    return { bounds, nearLeft, nearRight, farLeft, farRight };
-  }
-
-  private setLogicalCamera(position: MapCameraPosition): void {
-    this.logicalTilt = position.tilt;
-    this.logicalPosition = position.position;
-    this.logicalZoom = position.zoom;
-    this.logicalBearing = position.bearing;
-  }
 
   // ----- camera change listeners (mirror onMapCameraUpdated) -----------------
 
-  private onMapChange(): void {
-    if (this.enforceCameraConstraints()) return;
-    const camera = this.getCameraPosition();
-    if (!camera) return;
-    this.lastReportedCamera = camera;
-    if (this.isAnimatingCamera) return;
 
-    // Synthesize "move start" on the first continuous change after an idle
-    // period (HERE JS has no dedicated mapviewchangestart event).
-    if (!this.cameraMoveInProgress) {
-      this.cameraMoveInProgress = true;
-      this.notifyCameraMoveStart(camera);
-    }
-    this.notifyCameraMove(camera);
-  }
-
-  private onMapChangeEnd(): void {
-    if (this.enforceCameraConstraints()) return;
-    if (this.isAnimatingCamera) return;
-    if (this.cameraMoveEndTimer != null) clearTimeout(this.cameraMoveEndTimer);
-    this.cameraMoveEndTimer = setTimeout(() => {
-      this.cameraMoveEndTimer = null;
-      const camera = this.lastReportedCamera ?? this.getCameraPosition();
-      if (!camera) return;
-      this.cameraMoveInProgress = false;
-      void this.notifyControllersCameraChanged(camera);
-      this.notifyCameraMoveEnd(camera);
-    }, CAMERA_MOVE_END_IDLE_MS);
-  }
 
   private async notifyControllersCameraChanged(camera: MapCameraPosition): Promise<void> {
     await Promise.all([
@@ -388,226 +314,20 @@ export class HereMapViewController
     ]);
   }
 
-  private constrainLookAt(data: H.map.ViewLookAtData): H.map.ViewLookAtData {
-    const bounds = this.restrictBounds;
-    const position = data.position;
-    return {
-      ...data,
-      ...(data.zoom !== undefined
-        ? { zoom: clamp(data.zoom, this.minZoom, this.maxZoom) }
-        : {}),
-      ...(position && bounds?.southWest && bounds.northEast
-        ? {
-            position: {
-              ...position,
-              lat: clamp(position.lat, bounds.southWest.latitude, bounds.northEast.latitude),
-              lng: clamp(position.lng, bounds.southWest.longitude, bounds.northEast.longitude),
-            },
-          }
-        : {}),
-    };
-  }
 
-  /** Keeps both the camera target and the complete visible region in bounds. */
-  private enforceCameraConstraints(): boolean {
-    const map = this.holder.map;
-    const lookAt = map.getViewModel().getLookAtData();
-    const constrained = this.constrainLookAt(lookAt);
-    if (
-      constrained.zoom !== lookAt.zoom ||
-      constrained.position?.lat !== lookAt.position.lat ||
-      constrained.position?.lng !== lookAt.position.lng
-    ) {
-      map.getViewModel().setLookAtData(constrained, false);
-      this.scheduleConstraintCheck();
-      return true;
-    }
 
-    const restrict = this.restrictBounds;
-    const visible = this.getVisibleRegion()?.bounds;
-    if (!restrict?.southWest || !restrict.northEast || !visible?.southWest || !visible.northEast) {
-      return false;
-    }
-
-    const visibleLatSpan = visible.northEast.latitude - visible.southWest.latitude;
-    const visibleLngSpan = visible.northEast.longitude - visible.southWest.longitude;
-    const restrictLatSpan = restrict.northEast.latitude - restrict.southWest.latitude;
-    const restrictLngSpan = restrict.northEast.longitude - restrict.southWest.longitude;
-    if (visibleLatSpan > restrictLatSpan || visibleLngSpan > restrictLngSpan) {
-      const rect = toGeoRect(restrict);
-      if (rect) map.getViewModel().setLookAtData({ bounds: rect }, false);
-      return rect != null;
-    }
-
-    const center = lookAt.position;
-    const minLat = restrict.southWest.latitude + (center.lat - visible.southWest.latitude);
-    const maxLat = restrict.northEast.latitude - (visible.northEast.latitude - center.lat);
-    const minLng = restrict.southWest.longitude + (center.lng - visible.southWest.longitude);
-    const maxLng = restrict.northEast.longitude - (visible.northEast.longitude - center.lng);
-    const nextLat = clamp(center.lat, minLat, maxLat);
-    const nextLng = clamp(center.lng, minLng, maxLng);
-    if (Math.abs(nextLat - center.lat) < 1e-9 && Math.abs(nextLng - center.lng) < 1e-9) {
-      return false;
-    }
-    map.getViewModel().setLookAtData(
-      { ...lookAt, position: { ...center, lat: nextLat, lng: nextLng } },
-      false,
-    );
-    return true;
-  }
-
-  private scheduleConstraintCheck(): void {
-    if (this.constraintFrame != null) cancelAnimationFrame(this.constraintFrame);
-    this.constraintFrame = requestAnimationFrame(() => {
-      this.constraintFrame = null;
-      this.enforceCameraConstraints();
-    });
-  }
 
   // ----- tap / long press (mirror onTap / onLongPress) -----------------------
 
-  private onMapClick(event: H.map.MapEvent): void {
-    const point = this.toGeoPointFromEvent(event);
-    if (!point) return;
 
-    const markerEntity = this.markerController.find(point);
-    if (markerEntity?.state.clickable) {
-      this.markerController.dispatchClick(markerEntity.state);
-      return;
-    }
 
-    // Tiled markers are drawn into a raster overlay (no H.map.Marker to receive
-    // a tap, so find() above returns null for them); hit-test them here.
-    const tiled = this.markerController.findTiled(point, this.getCameraPosition()?.zoom ?? 0);
-    if (tiled?.state.clickable) {
-      this.markerController.dispatchClick(tiled.state);
-      return;
-    }
 
-    const circleEntity = this.circleController.find(point);
-    if (circleEntity) {
-      this.circleController.dispatchClick({ state: circleEntity.state, clicked: point });
-      return;
-    }
 
-    const polylineHit = this.polylineController.findWithClosestPoint(point);
-    if (polylineHit) {
-      this.polylineController.dispatchClick({
-        state: polylineHit.entity.state,
-        clicked: polylineHit.closestPoint,
-      });
-      return;
-    }
 
-    const polygonEntity = this.polygonController.find(point);
-    if (polygonEntity) {
-      this.polygonController.dispatchClick({ state: polygonEntity.state, clicked: point });
-      return;
-    }
-
-    this.notifyMapClick(point);
-  }
-
-  private onMapLongClick(event: H.map.MapEvent): void {
-    const point = this.toGeoPointFromEvent(event);
-    if (!point) return;
-    this.notifyMapLongClick(point);
-  }
-
-  private onMarkerDragStart(event: H.map.MapEvent): void {
-    const pointer = event.currentPointer;
-    if (!pointer || !(event.target instanceof H.map.Marker)) return;
-    const entity = this.markerController.findByMarker(event.target);
-    if (!entity?.state.draggable || !entity.marker) return;
-
-    const markerPoint = this.holder.map.geoToScreen(entity.marker.getGeometry());
-    this.markerDragOffset = {
-      x: pointer.viewportX - markerPoint.x,
-      y: pointer.viewportY - markerPoint.y,
-    };
-    this.markerController.setSelectedMarker(entity);
-    this.markerController.setDraggingState(entity.state, true);
-    this.holder.behavior.disable();
-    this.markerController.dispatchDragStart(entity.state);
-  }
-
-  private onMarkerDrag(event: H.map.MapEvent): void {
-    const entity = this.markerController.selectedMarker;
-    const pointer = event.currentPointer;
-    const offset = this.markerDragOffset;
-    if (!entity?.marker || !pointer || !offset) return;
-
-    const coord = this.holder.map.screenToGeo(
-      pointer.viewportX - offset.x,
-      pointer.viewportY - offset.y,
-    );
-    if (!coord) return;
-    const position = createGeoPoint({ latitude: coord.lat, longitude: coord.lng });
-    this.markerController.renderer.setMarkerPosition(entity, position);
-    this.markerController.applyDragPosition(entity.state, position);
-    this.markerController.dispatchDrag(entity.state);
-  }
-
-  private onMarkerDragEnd(event: H.map.MapEvent): void {
-    const entity = this.markerController.selectedMarker;
-    if (!entity) return;
-
-    this.onMarkerDrag(event);
-    this.markerController.setDraggingState(entity.state, false);
-    this.markerController.dispatchDragEnd(entity.state);
-    this.markerController.setSelectedMarker(null);
-    this.markerDragOffset = null;
-    this.holder.behavior.enable();
-    // `enable()` turns every gesture back on, including any the app disabled.
-    this.applyUISettings(this.uiSettings);
-  }
-
-  private toGeoPointFromEvent(event: H.map.MapEvent): GeoPoint | null {
-    const pointer = event.currentPointer;
-    if (!pointer) return null;
-    // While the 2D view fakes tilt/bearing with a CSS transform on the map
-    // plane, HERE's native screenToGeo (which ignores that transform) returns
-    // the wrong coordinate for taps — the error is zero at the plane's centre
-    // and grows toward the edges. Reproject through the holder's tilt-aware
-    // inverse, using the tap position in the OUTER container's coordinate space
-    // (derived from the raw DOM event so it is unaffected by the transform).
-    if (this.getVisualTilt() > 0.5 || Math.abs(this.getVisualBearing()) > 0.01) {
-      const outer = this.holder.mapView.parentElement;
-      const originalEvent = (event as unknown as { originalEvent?: { clientX?: number; clientY?: number } }).originalEvent;
-      const clientX = originalEvent?.clientX;
-      const clientY = originalEvent?.clientY;
-      if (outer && typeof clientX === 'number' && typeof clientY === 'number') {
-        const rect = outer.getBoundingClientRect();
-        return this.holder.fromScreenOffsetSync({ x: clientX - rect.left, y: clientY - rect.top });
-      }
-    }
-    // Flat & north-up: the plane is 1:1 with the container, so the native
-    // projection is correct (and cheaper).
-    const coord = this.holder.map.screenToGeo(pointer.viewportX, pointer.viewportY);
-    if (!coord) return null;
-    return createGeoPoint({ latitude: coord.lat, longitude: coord.lng });
-  }
 
   // ----- MapDesign (mirror setMapDesignType / setMapDesignTypeChangeListener)
 
-  setMapDesignType(value: HereMapDesignType): void {
-    this.mapDesignType = value;
-    applyHereBaseLayer(this.holder.map, value);
-    this.mapDesignTypeChangeListener?.(value);
-  }
 
-  setMapDesignTypeChangeListener(
-    listener: HereMapDesignTypeChangeHandler,
-    onMapInitialized?: OnMapInitializedHandler,
-  ): void {
-    this.mapDesignTypeChangeListener = listener;
-    listener(this.mapDesignType);
-    // Mirrors Android's notifyMapInitialized() inside onMapCameraUpdated.
-    if (onMapInitialized && !this.initialized) {
-      this.initialized = true;
-      onMapInitialized();
-    }
-  }
 
   // ----- lifecycle -----------------------------------------------------------
 
@@ -633,18 +353,24 @@ export class HereMapViewController
   override setCameraRestriction(restriction: CameraRestriction | null): void {
     super.setCameraRestriction(restriction);
     const effective = isEmptyCameraRestriction(restriction) ? null : restriction;
-    this.restrictBounds = effective?.bounds ?? undefined;
-    this.minZoom = effective?.minZoom ?? undefined;
-    this.maxZoom = effective?.maxZoom ?? undefined;
-    this.enforceCameraConstraints();
+    this.constraints.set(
+      effective
+        ? {
+            bounds: effective.bounds ?? undefined,
+            minZoom: effective.minZoom ?? undefined,
+            maxZoom: effective.maxZoom ?? undefined,
+          }
+        : null,
+    );
+    this.constraints.enforce();
   }
 
   destroy(): void {
     super.destroy();
     if (this.destroyed) return;
     this.destroyed = true;
-    if (this.cameraMoveEndTimer != null) clearTimeout(this.cameraMoveEndTimer);
-    if (this.constraintFrame != null) cancelAnimationFrame(this.constraintFrame);
+    this.camera.dispose();
+    this.constraints.dispose();
     this.detachListeners();
     void this.clearOverlays().finally(() => {
       this.markerController.destroy();
@@ -774,15 +500,6 @@ export class HereMapViewController
   }
 }
 
-/**
- * Apply a `HereMapDesignType` to a HERE JS `H.Map` by switching the base layer.
- * Mirrors the Android scene-reload inside `setMapDesignType(value)`.
- */
-function applyHereBaseLayer(map: H.Map, design: HereMapDesignType): void {
-  const platform = getHerePlatform();
-  if (!platform) return;
-  map.setBaseLayer(resolveHereBaseLayer(platform, design));
-}
 
 /** Sentinel enum-like ids; mirrors `HereMapDesign.NormalDay.id` in Android. */
 export const HereDesignId = {
@@ -853,7 +570,4 @@ export { setHerePlatform } from './HereViewControllerStore';
 // Re-exports used by the view component.
 export type { OnMapEventHandler };
 
-function clamp(value: number, min?: number, max?: number): number {
-  return Math.min(max ?? Infinity, Math.max(min ?? -Infinity, value));
-}
 
