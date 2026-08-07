@@ -25,13 +25,11 @@
  */
 import {
   BaseMapViewController,
-  DefaultMapUISettings,
   MapUISettingsDiagnostics,
-  type MapUISettings,
+  MapUISettings,
   computeFitBoundsCameraPosition,
   createGeoPoint,
   createGeoRectBounds,
-  type CameraOptions,
   type CircleState,
   type GeoPoint,
   type GeoRectBounds,
@@ -50,6 +48,8 @@ import {
   type PolylineState,
   type RasterLayerState,
   type VisibleRegion,
+  type CameraRestriction,
+  isEmptyCameraRestriction,
 } from '@mapconductor/js-sdk-core';
 import type { HereMapDesignType } from './HereMapDesign';
 import type {
@@ -85,9 +85,9 @@ export class HereMapViewController
   private readonly groundImageController: HereGroundImageController;
   private readonly circleController: HereCircleController;
   private readonly rasterLayerController: HereRasterLayerController;
-  private readonly minZoom?: number;
-  private readonly maxZoom?: number;
-  private readonly restrictBounds?: GeoRectBounds;
+  private minZoom?: number;
+  private maxZoom?: number;
+  private restrictBounds?: GeoRectBounds;
 
   private initialized = false;
   private destroyed = false;
@@ -166,7 +166,7 @@ export class HereMapViewController
     if (camera) void this.notifyControllersCameraChanged(camera);
   }
 
-  private uiSettings: MapUISettings = { ...DefaultMapUISettings };
+  private uiSettings: MapUISettings = { ...MapUISettings.Default };
 
   /**
    * `Behavior` takes a bitmask of the gestures to switch, so pan and the three
@@ -237,7 +237,7 @@ export class HereMapViewController
     return this.applyCamera(position, { animated: false });
   }
 
-  animateCamera(position: MapCameraPosition, _options?: CameraOptions): Promise<boolean> {
+  animateCamera(position: MapCameraPosition, _durationMillis: number): Promise<boolean> {
     return this.applyCamera(position, { animated: true });
   }
 
@@ -276,7 +276,7 @@ export class HereMapViewController
 
   // Unified fit: the core computes center + zoom; moveCamera keeps the current
   // heading/tilt (HERE's setLookAtData({ bounds }) would reset to top-down).
-  fitBounds(bounds: GeoRectBounds, options?: CameraOptions): Promise<boolean> {
+  fitBounds(bounds: GeoRectBounds, padding: number): Promise<boolean> {
     if (!bounds.southWest || !bounds.northEast) return Promise.resolve(false);
     const current = this.getCameraPosition();
     if (!current) return Promise.resolve(false);
@@ -287,14 +287,14 @@ export class HereMapViewController
       bounds,
       viewportWidthPx: width,
       viewportHeightPx: height,
-      padding: typeof options?.padding === 'number' ? options.padding : 0,
+      padding,
       bearing: current.bearing,
     });
     if (!fit) return Promise.resolve(false);
     const target = current.copy({ position: fit.center, zoom: fit.zoom });
     // snapZoom:false — keep the fractional fit zoom so the bounds fit precisely
     // and `padding` has a visible effect.
-    return this.applyCamera(target, { animated: !!options?.duration, snapZoom: false });
+    return this.applyCamera(target, { animated: false, snapZoom: false });
   }
 
   getCameraPosition(): MapCameraPosition | null {
@@ -310,9 +310,6 @@ export class HereMapViewController
     return visibleRegion ? logical.copy({ visibleRegion }) : logical;
   }
 
-  getBounds(): GeoRectBounds | null {
-    return this.getVisibleRegion()?.bounds ?? null;
-  }
 
   /**
    * Mirrors `getMapCameraPosition(cameraState)` in Android: projects the four
@@ -625,7 +622,25 @@ export class HereMapViewController
     ]);
   }
 
+  /**
+   * HERE JS API にはカメラ範囲制限の API が無いため、`constrainLookAt` /
+   * `enforceCameraConstraints` によるクランプで実現している（android-sdk の HERE と同じ方針）。
+   *
+   * ここでは core の `CameraRestriction` をその既存クランプの入力に流し込む。既存実装は
+   * カメラ中心だけでなく可視領域全体を矩形内に収める点で android-sdk のクランプより厳格なので、
+   * `BaseMapViewController.cameraRestrictionCorrection` には置き換えず温存する。
+   */
+  override setCameraRestriction(restriction: CameraRestriction | null): void {
+    super.setCameraRestriction(restriction);
+    const effective = isEmptyCameraRestriction(restriction) ? null : restriction;
+    this.restrictBounds = effective?.bounds ?? undefined;
+    this.minZoom = effective?.minZoom ?? undefined;
+    this.maxZoom = effective?.maxZoom ?? undefined;
+    this.enforceCameraConstraints();
+  }
+
   destroy(): void {
+    super.destroy();
     if (this.destroyed) return;
     this.destroyed = true;
     if (this.cameraMoveEndTimer != null) clearTimeout(this.cameraMoveEndTimer);

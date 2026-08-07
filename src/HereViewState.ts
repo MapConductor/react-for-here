@@ -88,7 +88,7 @@ export class HereViewState
     if (!durationMillis || durationMillis === 0) {
       void ctrl.moveCamera(next);
     } else {
-      void ctrl.animateCamera(next, { duration: durationMillis });
+      void ctrl.animateCamera(next, durationMillis);
     }
     this._cameraPosition = next;
     this._cameraPositionChangeListener?.(next);
@@ -99,7 +99,7 @@ export class HereViewState
   }
 
   override fitBounds(bounds: GeoRectBounds, padding: number = 0): void {
-    void this._controller?.fitBounds(bounds, { padding });
+    void this._controller?.fitBounds(bounds, padding);
   }
 
   /** Called by `HereMapView2D` when the controller is ready (mirrors `setController`). */

@@ -24,7 +24,9 @@ import { toGeoCoordinates } from '../GeoPoint';
 const MARKER_METADATA_ID_KEY = 'mc:id';
 
 function resolveDrawOrder(state: import('@mapconductor/js-sdk-core').MarkerState): number {
-  if (state.zIndex !== 0) return state.zIndex;
+  // android-sdk と同じく、未指定(null)のときだけ緯度による自動 z-order にフォールバックする。
+  // 明示的な 0 は「z-order 0」として尊重する。
+  if (state.zIndex != null) return state.zIndex;
   return Math.round(-state.position.latitude * 1_000_000 - state.position.longitude);
 }
 
