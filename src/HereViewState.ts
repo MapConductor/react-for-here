@@ -129,7 +129,7 @@ export class HereViewState
   }
 }
 
-export function useHereViewState(params: HereViewStateParams = {}): HereViewState {
+export function useHereViewState(params: HereViewStateParams = {}): HereViewStateInterface {
   const [state] = useState(() => new HereViewState(params));
   return state;
 }

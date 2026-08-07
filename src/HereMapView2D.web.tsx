@@ -16,6 +16,7 @@ import {
   MarkerAnimationLayer,
   MapAttributionOverlay,
   type InfoBubbleEntry,
+  createMapContextValue,
 } from '@mapconductor/js-sdk-react';
 import {
   useCameraRestriction,
@@ -32,6 +33,7 @@ import {
   type MarkerState,
   type MarkerTilingOptions,
   type OverlayCollector,
+  mapViewStateInternal,
 } from '@mapconductor/js-sdk-core';
 import { HereProvider, type HereConfig } from './HereProvider';
 import type { HereViewStateInterface } from './HereViewState';
@@ -275,8 +277,8 @@ export function HereMapView2D({
         // by the overlay pipeline (below) are created already hidden, avoiding a
         // flattened-icon flash before the billboard effect runs.
         ctrl.setNativeMarkersVisible(experimentalTilt <= 0.5);
-        state.setController(ctrl);
-        state.setCameraPositionChangeListener((camera) => {
+        mapViewStateInternal(state).setController(ctrl);
+        mapViewStateInternal(state).setCameraPositionChangeListener((camera) => {
           setVisualTilt(camera.tilt);
           setVisualBearing(camera.bearing);
           setCameraTick((t) => t + 1);
@@ -306,20 +308,20 @@ export function HereMapView2D({
         ctrl.setCameraMoveStartListener((camera: MapCameraPosition) => {
           setVisualTilt(camera.tilt);
           setVisualBearing(camera.bearing);
-          state.updateCameraPosition(camera);
+          mapViewStateInternal(state).updateCameraPosition(camera);
           onCameraMoveStartRef.current?.(camera);
         });
         ctrl.setCameraMoveListener((camera: MapCameraPosition) => {
           setVisualTilt(camera.tilt);
           setVisualBearing(camera.bearing);
-          state.updateCameraPosition(camera);
+          mapViewStateInternal(state).updateCameraPosition(camera);
           onCameraMoveRef.current?.(camera);
           setCameraTick((t) => t + 1);
         });
         ctrl.setCameraMoveEndListener((camera: MapCameraPosition) => {
           setVisualTilt(camera.tilt);
           setVisualBearing(camera.bearing);
-          state.updateCameraPosition(camera);
+          mapViewStateInternal(state).updateCameraPosition(camera);
           onCameraMoveEndRef.current?.(camera);
           setCameraTick((t) => t + 1);
         });
@@ -330,7 +332,7 @@ export function HereMapView2D({
           // これで `mapViewState.cameraPosition` が最初から権威ある値になり、
           // 拡張モジュールが `cameraPosition.visibleRegion.bounds` を初回から読める。
           const initial = typedControllerRef.current?.getCameraPosition() ?? null;
-          if (initial) state.updateCameraPosition(initial);
+          if (initial) mapViewStateInternal(state).updateCameraPosition(initial);
           setIsLoaded(true);
           onMapLoadedRef.current?.(state);
         });
@@ -402,8 +404,8 @@ export function HereMapView2D({
 
     return () => {
       cancelled = true;
-      state.setCameraPositionChangeListener(null);
-      state.setController(null);
+      mapViewStateInternal(state).setCameraPositionChangeListener(null);
+      mapViewStateInternal(state).setController(null);
       typedControllerRef.current = null;
       bridgeUnsubs.current.forEach((unsubscribe) => unsubscribe());
       bridgeUnsubs.current = [];
@@ -424,7 +426,7 @@ export function HereMapView2D({
   useMarkerRenderingSupport(state, scope, controller);
 
   return (
-    <MapContext.Provider value={{ controller, isReady, isLoaded, state }}>
+    <MapContext.Provider value={createMapContextValue({ controller, isReady, isLoaded, state })}>
       <div
         ref={outerContainerRef}
         style={{
