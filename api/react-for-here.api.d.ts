@@ -1,5 +1,5 @@
 /// <reference path="./here.d.ts" />
-import { MapDesignTypeInterface, AttributionRule, MarkerCapable, PolygonCapable, PolylineCapable, CircleCapable, GroundImageCapable, RasterLayerCapable, OnMapInitializedHandler, AbstractMarkerOverlayRenderer, MarkerManager, AddParams, ChangeParams, MarkerEntity, GeoPoint, AbstractMarkerController, RasterLayerState, MarkerTilingOptions, MarkerState, GeoPointInterface, AbstractPolylineOverlayRenderer, PolylineState, PolylineEntity, PolylineController, AbstractPolygonOverlayRenderer, PolygonState, PolygonEntity, PolygonController, AbstractCircleOverlayRenderer, CircleState, CircleEntity, CircleController, AbstractGroundImageOverlayRenderer, GroundImageState, GroundImageEntity, GroundImageController, RasterLayerOverlayRenderer, RasterLayerAddParams, RasterLayerChangeParams, RasterLayerEntity, MapCameraPosition, RasterLayerController, RasterHeaderSupport, BaseMapViewController, MapViewControllerInterface, GeoRectBounds, MapUISettings, CameraRestriction, OnMarkerEventHandler, OnCircleEventHandler, OnPolylineEventHandler, OnPolygonEventHandler, OnGroundImageEventHandler, MapViewHolderBase, Offset, MapViewStateInterface, MapViewState, MapViewHolder, MapConfig, MapProvider, MapViewBaseProps, WebMercatorZoomAltitudeConverter, MapCameraPositionInterface, BitmapIcon } from '@mapconductor/js-sdk-core';
+import { MapDesignTypeInterface, AttributionRule, MarkerCapable, PolygonCapable, PolylineCapable, CircleCapable, GroundImageCapable, RasterLayerCapable, OnMapInitializedHandler, AbstractMarkerOverlayRenderer, MarkerManager, AddParams, ChangeParams, MarkerEntity, GeoPoint, AbstractMarkerController, RasterLayerState, MarkerTilingOptions, MarkerState, GeoPointInterface, AbstractPolylineOverlayRenderer, PolylineState, PolylineEntity, PolylineController, AbstractPolygonOverlayRenderer, PolygonState, PolygonEntity, PolygonController, AbstractCircleOverlayRenderer, CircleState, CircleEntity, CircleController, AbstractGroundImageOverlayRenderer, GroundImageState, GroundImageEntity, GroundImageController, RasterLayerOverlayRenderer, RasterLayerAddParams, RasterLayerChangeParams, RasterLayerEntity, MapCameraPosition, RasterLayerController, RasterHeaderSupport, BaseMapViewController, MapViewControllerInterface, GeoRectBounds, MapUISettings, CameraRestriction, OnMarkerEventHandler, OnCircleEventHandler, OnPolylineEventHandler, OnPolygonEventHandler, OnGroundImageEventHandler, MapViewHolderBase, Offset, MapViewStateInterface, MapViewState, MapConfig, MapProvider, MapViewBaseProps, WebMercatorZoomAltitudeConverter, MapCameraPositionInterface, BitmapIcon } from '@mapconductor/js-sdk-core';
 import * as react from 'react';
 import { CSSProperties, ReactNode } from 'react';
 
@@ -698,25 +698,10 @@ interface HereViewStateParams {
     cameraPosition?: MapCameraPosition;
 }
 declare class HereViewState extends MapViewState<HereMapDesignType> implements HereViewStateInterface {
-    readonly id: string;
-    private _cameraPosition;
     private _mapDesignType;
-    private _controller;
-    private _cameraPositionChangeListener;
     constructor({ id, mapDesignType, cameraPosition, }?: HereViewStateParams);
-    get cameraPosition(): MapCameraPosition;
     get mapDesignType(): HereMapDesignType;
     set mapDesignType(value: HereMapDesignType);
-    moveCameraTo(position: GeoPoint, durationMillis?: number): void;
-    moveCameraTo(cameraPosition: MapCameraPosition, durationMillis?: number): void;
-    getMapViewHolder(): MapViewHolder<unknown, unknown> | null;
-    fitBounds(bounds: GeoRectBounds, padding?: number): void;
-    /** Called by `HereMapView2D` when the controller is ready (mirrors `setController`). */
-    setController(ctrl: MapViewControllerInterface | null): void;
-    /** Called by `HereMapView2D` on every camera update (mirrors `updateCameraPosition`). */
-    updateCameraPosition(camera: MapCameraPosition): void;
-    setCameraPositionChangeListener(listener: ((camera: MapCameraPosition) => void) | null): void;
-    private resolveCameraPosition;
 }
 declare function useHereViewState(params?: HereViewStateParams): HereViewStateInterface;
 
