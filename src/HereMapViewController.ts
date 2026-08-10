@@ -27,22 +27,13 @@ import {
   BaseMapViewController,
   MapUISettings,
   computeFitBoundsCameraPosition,
-  type CircleState,
   type GeoRectBounds,
-  type GroundImageState,
   type MapCameraPosition,
   type MapViewControllerInterface,
   type MarkerState,
-  type OnCircleEventHandler,
-  type OnGroundImageEventHandler,
   type OnMapEventHandler,
   type OnMapInitializedHandler,
   type OnMarkerEventHandler,
-  type OnPolygonEventHandler,
-  type OnPolylineEventHandler,
-  type PolygonState,
-  type PolylineState,
-  type RasterLayerState,
   type CameraRestriction,
   isEmptyCameraRestriction,
 } from '@mapconductor/js-sdk-core';
@@ -74,7 +65,6 @@ import {
   handleMarkerDragStart,
   type GestureDeps,
 } from './HereGestureHandlers';
-
 
 export class HereMapViewController
   extends BaseMapViewController
@@ -165,6 +155,15 @@ export class HereMapViewController
     this.groundImageController = groundImageController;
     this.circleController = circleController;
     this.rasterLayerController = rasterLayerController;
+
+    // Capable ファサードの既定実装がここから kind で引く。
+    // **登録を忘れると composition が黙って捨てられる。**
+    this.registerOverlayController(this.markerController);
+    this.registerOverlayController(this.circleController);
+    this.registerOverlayController(this.polylineController);
+    this.registerOverlayController(this.polygonController);
+    this.registerOverlayController(this.groundImageController);
+    this.registerOverlayController(this.rasterLayerController);
     this.constraints = new HereCameraConstraints(
       { map: this.holder.map, getVisibleRegion: () => readVisibleRegion(this.holder) },
       { bounds: restrictBounds, minZoom, maxZoom },
@@ -223,7 +222,6 @@ export class HereMapViewController
       onMapInitialized();
     }
   }
-
 
   // ----- setup ---------------------------------------------------------------
 
@@ -295,13 +293,7 @@ export class HereMapViewController
     return this.camera.apply(target, { animated: false, snapZoom: false });
   }
 
-
-
-
-
   // ----- camera change listeners (mirror onMapCameraUpdated) -----------------
-
-
 
   private async notifyControllersCameraChanged(camera: MapCameraPosition): Promise<void> {
     await Promise.all([
@@ -314,20 +306,9 @@ export class HereMapViewController
     ]);
   }
 
-
-
-
   // ----- tap / long press (mirror onTap / onLongPress) -----------------------
 
-
-
-
-
-
-
   // ----- MapDesign (mirror setMapDesignType / setMapDesignTypeChangeListener)
-
-
 
   // ----- lifecycle -----------------------------------------------------------
 
@@ -380,14 +361,6 @@ export class HereMapViewController
 
   // ----- markers -------------------------------------------------------------
 
-  async compositionMarkers(data: MarkerState[]): Promise<void> {
-    await this.markerController.composition(data);
-  }
-  async updateMarker(state: MarkerState): Promise<void> {
-    await this.markerController.update(state);
-  }
-  hasMarker(state: MarkerState): boolean { return this.markerController.has(state); }
-
   /**
    * Shows or hides the native HERE canvas markers. The 2D view hides them while
    * its CSS tilt hack is active (which would otherwise flatten the icons against
@@ -435,71 +408,15 @@ export class HereMapViewController
 
   // ----- circles -------------------------------------------------------------
 
-  async compositionCircles(data: CircleState[]): Promise<void> {
-    await this.circleController.composition(data);
-  }
-  async updateCircle(state: CircleState): Promise<void> {
-    await this.circleController.update(state);
-  }
-  hasCircle(state: CircleState): boolean { return this.circleController.has(state); }
-  setOnCircleClickListener(listener: OnCircleEventHandler | null): void {
-    this.circleController.clickListener = listener;
-  }
-
   // ----- polylines -----------------------------------------------------------
-
-  async compositionPolylines(data: PolylineState[]): Promise<void> {
-    await this.polylineController.composition(data);
-  }
-  async updatePolyline(state: PolylineState): Promise<void> {
-    await this.polylineController.update(state);
-  }
-  hasPolyline(state: PolylineState): boolean { return this.polylineController.has(state); }
-  setOnPolylineClickListener(listener: OnPolylineEventHandler | null): void {
-    this.polylineController.clickListener = listener;
-  }
 
   // ----- polygons ------------------------------------------------------------
 
-  async compositionPolygons(data: PolygonState[]): Promise<void> {
-    await this.polygonController.composition(data);
-  }
-  async updatePolygon(state: PolygonState): Promise<void> {
-    await this.polygonController.update(state);
-  }
-  hasPolygon(state: PolygonState): boolean { return this.polygonController.has(state); }
-  setOnPolygonClickListener(listener: OnPolygonEventHandler | null): void {
-    this.polygonController.clickListener = listener;
-  }
-
   // ----- ground images -------------------------------------------------------
-
-  async compositionGroundImages(data: GroundImageState[]): Promise<void> {
-    await this.groundImageController.add(data);
-  }
-  async updateGroundImage(state: GroundImageState): Promise<void> {
-    await this.groundImageController.update(state);
-  }
-  hasGroundImage(state: GroundImageState): boolean {
-    return this.groundImageController.has(state);
-  }
-  setOnGroundImageClickListener(listener: OnGroundImageEventHandler | null): void {
-    this.groundImageController.clickListener = listener;
-  }
 
   // ----- raster layers -------------------------------------------------------
 
-  async compositionRasterLayers(data: RasterLayerState[]): Promise<void> {
-    await this.rasterLayerController.add(data);
-  }
-  async updateRasterLayer(state: RasterLayerState): Promise<void> {
-    await this.rasterLayerController.update(state);
-  }
-  hasRasterLayer(state: RasterLayerState): boolean {
-    return this.rasterLayerController.has(state);
-  }
 }
-
 
 /** Sentinel enum-like ids; mirrors `HereMapDesign.NormalDay.id` in Android. */
 export const HereDesignId = {
@@ -569,5 +486,4 @@ export { setHerePlatform } from './HereViewControllerStore';
 
 // Re-exports used by the view component.
 export type { OnMapEventHandler };
-
 

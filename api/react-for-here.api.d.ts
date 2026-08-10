@@ -1,5 +1,5 @@
 /// <reference path="./here.d.ts" />
-import { MapDesignTypeInterface, AttributionRule, MarkerCapable, PolygonCapable, PolylineCapable, CircleCapable, GroundImageCapable, RasterLayerCapable, OnMapInitializedHandler, AbstractMarkerOverlayRenderer, MarkerManager, AddParams, ChangeParams, MarkerEntity, GeoPoint, AbstractMarkerController, RasterLayerState, MarkerTilingOptions, MarkerState, GeoPointInterface, AbstractPolylineOverlayRenderer, PolylineState, PolylineEntity, PolylineController, AbstractPolygonOverlayRenderer, PolygonState, PolygonEntity, PolygonController, AbstractCircleOverlayRenderer, CircleState, CircleEntity, CircleController, AbstractGroundImageOverlayRenderer, GroundImageState, GroundImageEntity, GroundImageController, RasterLayerOverlayRenderer, RasterLayerAddParams, RasterLayerChangeParams, RasterLayerEntity, MapCameraPosition, RasterLayerController, RasterHeaderSupport, BaseMapViewController, MapViewControllerInterface, GeoRectBounds, MapUISettings, CameraRestriction, OnMarkerEventHandler, OnCircleEventHandler, OnPolylineEventHandler, OnPolygonEventHandler, OnGroundImageEventHandler, MapViewHolderBase, Offset, MapViewStateInterface, MapViewState, MapConfig, MapProvider, MapViewBaseProps, WebMercatorZoomAltitudeConverter, MapCameraPositionInterface, BitmapIcon } from '@mapconductor/js-sdk-core';
+import { MapDesignTypeInterface, AttributionRule, MarkerCapable, PolygonCapable, PolylineCapable, CircleCapable, GroundImageCapable, RasterLayerCapable, OnMapInitializedHandler, AbstractMarkerOverlayRenderer, MarkerManager, AddParams, ChangeParams, MarkerEntity, GeoPoint, AbstractMarkerController, RasterLayerState, MarkerTilingOptions, MarkerState, GeoPointInterface, AbstractPolylineOverlayRenderer, PolylineState, PolylineEntity, PolylineController, AbstractPolygonOverlayRenderer, PolygonState, PolygonEntity, PolygonController, AbstractCircleOverlayRenderer, CircleState, CircleEntity, CircleController, AbstractGroundImageOverlayRenderer, GroundImageState, GroundImageEntity, GroundImageController, RasterLayerOverlayRenderer, RasterLayerAddParams, RasterLayerChangeParams, RasterLayerEntity, MapCameraPosition, RasterLayerController, RasterHeaderSupport, BaseMapViewController, MapViewControllerInterface, GeoRectBounds, MapUISettings, CameraRestriction, OnMarkerEventHandler, MapViewHolderBase, Offset, MapViewStateInterface, MapViewState, MapConfig, MapProvider, MapViewBaseProps, WebMercatorZoomAltitudeConverter, MapCameraPositionInterface, BitmapIcon } from '@mapconductor/js-sdk-core';
 import * as react from 'react';
 import { CSSProperties, ReactNode } from 'react';
 
@@ -608,9 +608,6 @@ declare class HereMapViewController extends BaseMapViewController implements Her
      */
     setCameraRestriction(restriction: CameraRestriction | null): void;
     destroy(): void;
-    compositionMarkers(data: MarkerState[]): Promise<void>;
-    updateMarker(state: MarkerState): Promise<void>;
-    hasMarker(state: MarkerState): boolean;
     /**
      * Shows or hides the native HERE canvas markers. The 2D view hides them while
      * its CSS tilt hack is active (which would otherwise flatten the icons against
@@ -632,25 +629,6 @@ declare class HereMapViewController extends BaseMapViewController implements Her
     setOnMarkerAnimateStart(listener: OnMarkerEventHandler | null): void;
     setOnMarkerAnimateEnd(listener: OnMarkerEventHandler | null): void;
     setMarkerAnimationOverlayHost(host: ((entry: never) => void) | null): void;
-    compositionCircles(data: CircleState[]): Promise<void>;
-    updateCircle(state: CircleState): Promise<void>;
-    hasCircle(state: CircleState): boolean;
-    setOnCircleClickListener(listener: OnCircleEventHandler | null): void;
-    compositionPolylines(data: PolylineState[]): Promise<void>;
-    updatePolyline(state: PolylineState): Promise<void>;
-    hasPolyline(state: PolylineState): boolean;
-    setOnPolylineClickListener(listener: OnPolylineEventHandler | null): void;
-    compositionPolygons(data: PolygonState[]): Promise<void>;
-    updatePolygon(state: PolygonState): Promise<void>;
-    hasPolygon(state: PolygonState): boolean;
-    setOnPolygonClickListener(listener: OnPolygonEventHandler | null): void;
-    compositionGroundImages(data: GroundImageState[]): Promise<void>;
-    updateGroundImage(state: GroundImageState): Promise<void>;
-    hasGroundImage(state: GroundImageState): boolean;
-    setOnGroundImageClickListener(listener: OnGroundImageEventHandler | null): void;
-    compositionRasterLayers(data: RasterLayerState[]): Promise<void>;
-    updateRasterLayer(state: RasterLayerState): Promise<void>;
-    hasRasterLayer(state: RasterLayerState): boolean;
 }
 /** Sentinel enum-like ids; mirrors `HereMapDesign.NormalDay.id` in Android. */
 declare const HereDesignId: {
