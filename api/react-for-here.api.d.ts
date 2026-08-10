@@ -1,5 +1,5 @@
 /// <reference path="./here.d.ts" />
-import { MapDesignTypeInterface, AttributionRule, MarkerCapable, PolygonCapable, PolylineCapable, CircleCapable, GroundImageCapable, RasterLayerCapable, OnMapInitializedHandler, AbstractMarkerOverlayRenderer, MarkerManager, AddParams, ChangeParams, MarkerEntity, GeoPoint, AbstractMarkerController, RasterLayerState, MarkerTilingOptions, MarkerState, GeoPointInterface, AbstractPolylineOverlayRenderer, PolylineState, PolylineEntity, PolylineController, AbstractPolygonOverlayRenderer, PolygonState, PolygonEntity, PolygonController, AbstractCircleOverlayRenderer, CircleState, CircleEntity, CircleController, AbstractGroundImageOverlayRenderer, GroundImageState, GroundImageEntity, GroundImageController, RasterLayerOverlayRenderer, RasterLayerAddParams, RasterLayerChangeParams, RasterLayerEntity, MapCameraPosition, RasterLayerController, RasterHeaderSupport, BaseMapViewController, MapViewControllerInterface, GeoRectBounds, MapUISettings, CameraRestriction, OnMarkerEventHandler, OnCircleEventHandler, OnPolylineEventHandler, OnPolygonEventHandler, OnGroundImageEventHandler, MapViewHolderBase, Offset, MapViewStateInterface, MapViewState, MapViewHolder, MapConfig, MapProvider, MapViewBaseProps, AbstractZoomAltitudeConverter, MapCameraPositionInterface, BitmapIcon } from '@mapconductor/js-sdk-core';
+import { MapDesignTypeInterface, AttributionRule, MarkerCapable, PolygonCapable, PolylineCapable, CircleCapable, GroundImageCapable, RasterLayerCapable, OnMapInitializedHandler, AbstractMarkerOverlayRenderer, MarkerManager, AddParams, ChangeParams, MarkerEntity, GeoPoint, AbstractMarkerController, RasterLayerState, MarkerTilingOptions, MarkerState, GeoPointInterface, AbstractPolylineOverlayRenderer, PolylineState, PolylineEntity, PolylineController, AbstractPolygonOverlayRenderer, PolygonState, PolygonEntity, PolygonController, AbstractCircleOverlayRenderer, CircleState, CircleEntity, CircleController, AbstractGroundImageOverlayRenderer, GroundImageState, GroundImageEntity, GroundImageController, RasterLayerOverlayRenderer, RasterLayerAddParams, RasterLayerChangeParams, RasterLayerEntity, MapCameraPosition, RasterLayerController, RasterHeaderSupport, BaseMapViewController, MapViewControllerInterface, GeoRectBounds, MapUISettings, CameraRestriction, OnMarkerEventHandler, OnCircleEventHandler, OnPolylineEventHandler, OnPolygonEventHandler, OnGroundImageEventHandler, MapViewHolderBase, Offset, MapViewStateInterface, MapViewState, MapViewHolder, MapConfig, MapProvider, MapViewBaseProps, WebMercatorZoomAltitudeConverter, MapCameraPositionInterface, BitmapIcon } from '@mapconductor/js-sdk-core';
 import * as react from 'react';
 import { CSSProperties, ReactNode } from 'react';
 
@@ -774,32 +774,23 @@ interface HereMapView2DProps extends MapViewBaseProps<HereViewStateInterface> {
 declare function HereMapView2D({ state, onMapLoaded, onMapClick, onMapLongClick, onCameraMoveStart, onCameraMove, onCameraMoveEnd, minZoom, maxZoom, restrictBounds, cameraRestriction, pixelRatio, platform, markerTilingOptions, className, containerStyle, onError, children, }: HereMapView2DProps): react.JSX.Element;
 
 /**
- * Port of `ZoomAltitudeConverter.kt` in
- * `android-for-here/.../zoom/ZoomAltitudeConverter.kt`.
+ * 統一ズーム（Google Maps 基準・256px タイル）⇄ 高度の変換。
  *
- * Unlike the Android HERE SDK (whose camera is distance-based and needs a
- * latitude correction), the HERE Maps API for JavaScript renders a flat
- * WebMercator view whose zoom convention is identical to Google/MapLibre at
- * every latitude, so here<->google zoom conversion is the identity. The
- * cos(latitude) factor only applies when converting zoom to real-world
- * altitude (meters), same as Google's own zoom/altitude relation.
+ * HERE Maps API for JavaScript は平坦な Web Mercator で描き、ズームの取り方が
+ * どの緯度でも Google / MapLibre と同じなので、here⇄google のズーム変換は恒等。
+ * つまりオフセットは 0。`cos(latitude)` はズームを実距離（メートル）へ直すときだけ効く。
+ *
+ * **ネイティブの HERE SDK とは違う。** android-for-here / ios-for-here は距離基準の
+ * カメラで緯度補正が要り、しかも緯度・tilt のクランプが無いのでコアの実装に寄せていない。
+ * web だけがこの形。
+ *
+ * 換算式はコアの {@link WebMercatorZoomAltitudeConverter} にある。
  */
-
-declare class ZoomAltitudeConverter extends AbstractZoomAltitudeConverter {
+declare class ZoomAltitudeConverter extends WebMercatorZoomAltitudeConverter {
     static readonly HERE_ZOOM_TO_GOOGLE_ZOOM_AT_EQUATOR = 0;
-    private static cosLatitudeFactor;
+    constructor(zoom0Altitude?: number);
     static hereZoomToGoogleZoom(hereZoom: number, _latitude: number): number;
     static googleZoomToHereZoom(googleZoom: number, _latitude: number): number;
-    zoomLevelToAltitude({ zoomLevel, latitude, tilt, }: {
-        zoomLevel: number;
-        latitude: number;
-        tilt: number;
-    }): number;
-    altitudeToZoomLevel({ altitude, latitude, tilt, }: {
-        altitude: number;
-        latitude: number;
-        tilt: number;
-    }): number;
 }
 
 /**

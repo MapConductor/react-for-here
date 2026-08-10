@@ -1,96 +1,38 @@
+import { AbstractZoomAltitudeConverter, WebMercatorZoomAltitudeConverter } from '@mapconductor/js-sdk-core';
+
 /**
- * Port of `ZoomAltitudeConverter.kt` in
- * `android-for-here/.../zoom/ZoomAltitudeConverter.kt`.
+ * 統一ズーム（Google Maps 基準・256px タイル）⇄ 高度の変換。
  *
- * Unlike the Android HERE SDK (whose camera is distance-based and needs a
- * latitude correction), the HERE Maps API for JavaScript renders a flat
- * WebMercator view whose zoom convention is identical to Google/MapLibre at
- * every latitude, so here<->google zoom conversion is the identity. The
- * cos(latitude) factor only applies when converting zoom to real-world
- * altitude (meters), same as Google's own zoom/altitude relation.
+ * HERE Maps API for JavaScript は平坦な Web Mercator で描き、ズームの取り方が
+ * どの緯度でも Google / MapLibre と同じなので、here⇄google のズーム変換は恒等。
+ * つまりオフセットは 0。`cos(latitude)` はズームを実距離（メートル）へ直すときだけ効く。
+ *
+ * **ネイティブの HERE SDK とは違う。** android-for-here / ios-for-here は距離基準の
+ * カメラで緯度補正が要り、しかも緯度・tilt のクランプが無いのでコアの実装に寄せていない。
+ * web だけがこの形。
+ *
+ * 換算式はコアの {@link WebMercatorZoomAltitudeConverter} にある。
  */
-import { AbstractZoomAltitudeConverter } from '@mapconductor/js-sdk-core';
+export class ZoomAltitudeConverter extends WebMercatorZoomAltitudeConverter {
+    static readonly HERE_ZOOM_TO_GOOGLE_ZOOM_AT_EQUATOR = 0.0;
 
-export class ZoomAltitudeConverter extends AbstractZoomAltitudeConverter {
-  static readonly HERE_ZOOM_TO_GOOGLE_ZOOM_AT_EQUATOR = 0.0;
+    constructor(zoom0Altitude: number = AbstractZoomAltitudeConverter.DEFAULT_ZOOM0_ALTITUDE) {
+        super(zoom0Altitude, ZoomAltitudeConverter.HERE_ZOOM_TO_GOOGLE_ZOOM_AT_EQUATOR);
+    }
 
-  private static cosLatitudeFactor(latitudeDeg: number): number {
-    const clamped = Math.max(-85, Math.min(85, latitudeDeg));
-    const latRad = (clamped * Math.PI) / 180;
-    return Math.max(AbstractZoomAltitudeConverter.MIN_COS_LAT, Math.abs(Math.cos(latRad)));
-  }
+    static hereZoomToGoogleZoom(hereZoom: number, _latitude: number): number {
+        const googleZoom = hereZoom + ZoomAltitudeConverter.HERE_ZOOM_TO_GOOGLE_ZOOM_AT_EQUATOR;
+        return Math.min(
+            Math.max(googleZoom, AbstractZoomAltitudeConverter.MIN_ZOOM_LEVEL),
+            AbstractZoomAltitudeConverter.MAX_ZOOM_LEVEL,
+        );
+    }
 
-  static hereZoomToGoogleZoom(hereZoom: number, _latitude: number): number {
-    const googleZoom =
-      hereZoom + ZoomAltitudeConverter.HERE_ZOOM_TO_GOOGLE_ZOOM_AT_EQUATOR;
-    return Math.min(
-      Math.max(googleZoom, AbstractZoomAltitudeConverter.MIN_ZOOM_LEVEL),
-      AbstractZoomAltitudeConverter.MAX_ZOOM_LEVEL,
-    );
-  }
-
-  static googleZoomToHereZoom(googleZoom: number, _latitude: number): number {
-    const hereZoom =
-      googleZoom - ZoomAltitudeConverter.HERE_ZOOM_TO_GOOGLE_ZOOM_AT_EQUATOR;
-    return Math.min(
-      Math.max(hereZoom, AbstractZoomAltitudeConverter.MIN_ZOOM_LEVEL),
-      AbstractZoomAltitudeConverter.MAX_ZOOM_LEVEL,
-    );
-  }
-
-  zoomLevelToAltitude({
-    zoomLevel,
-    latitude,
-    tilt,
-  }: {
-    zoomLevel: number;
-    latitude: number;
-    tilt: number;
-  }): number {
-    const clampedZoom = Math.min(
-      Math.max(zoomLevel, AbstractZoomAltitudeConverter.MIN_ZOOM_LEVEL),
-      AbstractZoomAltitudeConverter.MAX_ZOOM_LEVEL,
-    );
-    const cosLat = ZoomAltitudeConverter.cosLatitudeFactor(latitude);
-    const tiltRad = (Math.max(0, Math.min(90, tilt)) * Math.PI) / 180;
-    const cosTilt = Math.max(
-      AbstractZoomAltitudeConverter.MIN_COS_TILT,
-      Math.cos(tiltRad),
-    );
-    const distance =
-      (this.zoom0Altitude * cosLat) /
-      Math.pow(AbstractZoomAltitudeConverter.ZOOM_FACTOR, clampedZoom);
-    const altitude = distance * cosTilt;
-    return Math.min(
-      Math.max(altitude, AbstractZoomAltitudeConverter.MIN_ALTITUDE),
-      AbstractZoomAltitudeConverter.MAX_ALTITUDE,
-    );
-  }
-
-  altitudeToZoomLevel({
-    altitude,
-    latitude,
-    tilt,
-  }: {
-    altitude: number;
-    latitude: number;
-    tilt: number;
-  }): number {
-    const clampedAltitude = Math.min(
-      Math.max(altitude, AbstractZoomAltitudeConverter.MIN_ALTITUDE),
-      AbstractZoomAltitudeConverter.MAX_ALTITUDE,
-    );
-    const cosLat = ZoomAltitudeConverter.cosLatitudeFactor(latitude);
-    const tiltRad = (Math.max(0, Math.min(90, tilt)) * Math.PI) / 180;
-    const cosTilt = Math.max(
-      AbstractZoomAltitudeConverter.MIN_COS_TILT,
-      Math.cos(tiltRad),
-    );
-    const distance = clampedAltitude / cosTilt;
-    const zoomLevel = Math.log2((this.zoom0Altitude * cosLat) / distance);
-    return Math.min(
-      Math.max(zoomLevel, AbstractZoomAltitudeConverter.MIN_ZOOM_LEVEL),
-      AbstractZoomAltitudeConverter.MAX_ZOOM_LEVEL,
-    );
-  }
+    static googleZoomToHereZoom(googleZoom: number, _latitude: number): number {
+        const hereZoom = googleZoom - ZoomAltitudeConverter.HERE_ZOOM_TO_GOOGLE_ZOOM_AT_EQUATOR;
+        return Math.min(
+            Math.max(hereZoom, AbstractZoomAltitudeConverter.MIN_ZOOM_LEVEL),
+            AbstractZoomAltitudeConverter.MAX_ZOOM_LEVEL,
+        );
+    }
 }
