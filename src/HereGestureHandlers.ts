@@ -33,6 +33,12 @@ export interface GestureDeps {
   getVisualBearing(): number;
   applyUISettings(settings: MapUISettings): void;
   onMapClick(point: GeoPoint): void;
+
+  /**
+   * タップの配送。コアの `BaseMapViewController.dispatchTap` を呼ぶ。
+   * marker → circle → groundImage → polyline → polygon → map を 1 つだけ配送する。
+   */
+  dispatchTap(point: GeoPoint): boolean;
   onMapLongClick(point: GeoPoint): void;
 }
 
@@ -40,42 +46,9 @@ export function handleMapClick(deps: GestureDeps, event: H.map.MapEvent): void {
   const point = toGeoPointFromEvent(deps, event);
   if (!point) return;
 
-  const markerEntity = deps.markerController.find(point);
-  if (markerEntity?.state.clickable) {
-    deps.markerController.dispatchClick(markerEntity.state);
-    return;
-  }
-
-  // Tiled markers are drawn into a raster overlay (no H.map.Marker to receive
-  // a tap, so find() above returns null for them); hit-test them here.
-  const tiled = deps.markerController.findTiled(point, deps.getCameraPosition()?.zoom ?? 0);
-  if (tiled?.state.clickable) {
-    deps.markerController.dispatchClick(tiled.state);
-    return;
-  }
-
-  const circleEntity = deps.circleController.find(point);
-  if (circleEntity) {
-    deps.circleController.dispatchClick({ state: circleEntity.state, clicked: point });
-    return;
-  }
-
-  const polylineHit = deps.polylineController.findWithClosestPoint(point);
-  if (polylineHit) {
-    deps.polylineController.dispatchClick({
-      state: polylineHit.entity.state,
-      clicked: polylineHit.closestPoint,
-    });
-    return;
-  }
-
-  const polygonEntity = deps.polygonController.find(point);
-  if (polygonEntity) {
-    deps.polygonController.dispatchClick({ state: polygonEntity.state, clicked: point });
-    return;
-  }
-
-  deps.onMapClick(point);
+  // marker → circle → groundImage → polyline → polygon → map の一本道。
+  // 順序と先勝ちはコアの BaseMapViewController.dispatchTap が持つ。
+  deps.dispatchTap(point);
 }
 
 export function handleMapLongClick(deps: GestureDeps, event: H.map.MapEvent): void {

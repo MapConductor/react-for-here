@@ -629,6 +629,12 @@ declare class HereMapViewController extends BaseMapViewController implements Her
     setOnMarkerAnimateStart(listener: OnMarkerEventHandler | null): void;
     setOnMarkerAnimateEnd(listener: OnMarkerEventHandler | null): void;
     setMarkerAnimationOverlayHost(host: ((entry: never) => void) | null): void;
+    /**
+     * マーカーのヒットテストと配送。カスケードの先頭。
+     *
+     * 通常のマーカーとタイル方式のマーカーの両方を見る必要があるのでここで持つ。
+     */
+    protected dispatchMarkerTap(point: GeoPoint): boolean;
 }
 /** Sentinel enum-like ids; mirrors `HereMapDesign.NormalDay.id` in Android. */
 declare const HereDesignId: {

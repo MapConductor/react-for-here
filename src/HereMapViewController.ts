@@ -36,6 +36,7 @@ import {
   type OnMarkerEventHandler,
   type CameraRestriction,
   isEmptyCameraRestriction,
+  type GeoPoint,
 } from '@mapconductor/js-sdk-core';
 import type { HereMapDesignType } from './HereMapDesign';
 import type {
@@ -108,6 +109,7 @@ export class HereMapViewController
       getVisualBearing: () => this.getVisualBearing(),
       applyUISettings: (settings) => this.applyUISettings(settings),
       onMapClick: (point) => this.notifyMapClick(point),
+      dispatchTap: (point) => this.dispatchTap(point),
       onMapLongClick: (point) => this.notifyMapLongClick(point),
     };
   }
@@ -416,6 +418,25 @@ export class HereMapViewController
 
   // ----- raster layers -------------------------------------------------------
 
+
+  /**
+   * マーカーのヒットテストと配送。カスケードの先頭。
+   *
+   * 通常のマーカーとタイル方式のマーカーの両方を見る必要があるのでここで持つ。
+   */
+  protected override dispatchMarkerTap(point: GeoPoint): boolean {
+    const entity = this.markerController.find(point);
+    if (entity?.state.clickable) {
+      this.markerController.dispatchClick(entity.state);
+      return true;
+    }
+    const tiled = this.markerController.findTiled(point, this.getCameraPosition()?.zoom ?? 0);
+    if (tiled?.state.clickable) {
+      this.markerController.dispatchClick(tiled.state);
+      return true;
+    }
+    return false;
+  }
 }
 
 /** Sentinel enum-like ids; mirrors `HereMapDesign.NormalDay.id` in Android. */
