@@ -1,63 +1,9 @@
 /// <reference path="./here.d.ts" />
-import { MapDesignTypeInterface, AttributionRule, MarkerCapable, PolygonCapable, PolylineCapable, CircleCapable, GroundImageCapable, RasterLayerCapable, OnMapInitializedHandler, AbstractMarkerOverlayRenderer, MarkerManager, AddParams, ChangeParams, MarkerEntity, GeoPoint, AbstractMarkerController, RasterLayerState, MarkerTilingOptions, MarkerState, GeoPointInterface, AbstractPolylineOverlayRenderer, PolylineState, PolylineEntity, PolylineController, AbstractPolygonOverlayRenderer, PolygonState, PolygonEntity, PolygonController, AbstractCircleOverlayRenderer, CircleState, CircleEntity, CircleController, AbstractGroundImageOverlayRenderer, GroundImageState, GroundImageEntity, GroundImageController, RasterLayerOverlayRenderer, RasterLayerAddParams, RasterLayerChangeParams, RasterLayerEntity, MapCameraPosition, RasterLayerController, RasterHeaderSupport, BaseMapViewController, MapViewControllerInterface, GeoRectBounds, MapUISettings, CameraRestriction, OnMarkerEventHandler, MapViewHolderBase, Offset, MapViewStateInterface, MapViewState, MapConfig, MapProvider, MapViewBaseProps, WebMercatorZoomAltitudeConverter, MapCameraPositionInterface, BitmapIcon } from '@mapconductor/js-sdk-core';
+import { HereMapDesignType, HereViewStateInterface } from './state.js';
+export { HereMapDesign, HereViewState, HereViewStateParams, useHereViewState } from './state.js';
+import { MarkerCapable, PolygonCapable, PolylineCapable, CircleCapable, GroundImageCapable, RasterLayerCapable, OnMapInitializedHandler, AbstractMarkerOverlayRenderer, MarkerManager, AddParams, ChangeParams, MarkerEntity, GeoPoint, AbstractMarkerController, RasterLayerState, MarkerTilingOptions, MarkerState, GeoPointInterface, AbstractPolylineOverlayRenderer, PolylineState, PolylineEntity, PolylineController, AbstractPolygonOverlayRenderer, PolygonState, PolygonEntity, PolygonController, AbstractCircleOverlayRenderer, CircleState, CircleEntity, CircleController, AbstractGroundImageOverlayRenderer, GroundImageState, GroundImageEntity, GroundImageController, RasterLayerOverlayRenderer, RasterLayerAddParams, RasterLayerChangeParams, RasterLayerEntity, MapCameraPosition, RasterLayerController, RasterHeaderSupport, BaseMapViewController, MapViewControllerInterface, GeoRectBounds, MapUISettings, CameraRestriction, OnMarkerEventHandler, MapViewHolderBase, Offset, MapConfig, MapProvider, MapViewBaseProps, WebMercatorZoomAltitudeConverter, MapCameraPositionInterface, BitmapIcon } from '@mapconductor/js-sdk-core';
 import * as react from 'react';
 import { CSSProperties, ReactNode } from 'react';
-
-/**
- * Mirrors `HereMapDesignType` in `android-for-here/.../HereMapDesign.kt`:
- * `typealias HereMapDesignType = MapDesignTypeInterface<MapScheme>`.
- *
- * `MapScheme` here is the HERE Maps API for JavaScript style string
- * (e.g. `H.map.style.NormalDay`). Android uses the equivalent
- * `com.here.sdk.mapview.MapScheme` enum value.
- */
-type HereMapDesignType = MapDesignTypeInterface<string>;
-/**
- * Mirrors `HereMapDesign` (sealed class) in Android. Each Android `object`
- * (`NormalDay`, `NormalNight`, `Satellite`, ...) maps to a `static` here.
- * The JavaScript style strings come from `H.map.style.*`.
- */
-declare class HereMapDesign implements HereMapDesignType {
-    readonly id: string;
-    readonly attributionRules: readonly AttributionRule[];
-    constructor(id: string, attributionRules?: readonly AttributionRule[]);
-    getValue(): string;
-    /** `MapScheme.NORMAL_DAY` */
-    static readonly NormalDay: HereMapDesign;
-    /** `MapScheme.NORMAL_NIGHT` */
-    static readonly NormalNight: HereMapDesign;
-    /** `MapScheme.SATELLITE` */
-    static readonly Satellite: HereMapDesign;
-    /** `MapScheme.HYBRID_DAY` */
-    static readonly HybridDay: HereMapDesign;
-    /** `MapScheme.HYBRID_NIGHT` */
-    static readonly HybridNight: HereMapDesign;
-    /** `MapScheme.LITE_DAY` */
-    static readonly LiteDay: HereMapDesign;
-    /** `MapScheme.LITE_NIGHT` */
-    static readonly LiteNight: HereMapDesign;
-    /** `MapScheme.LITE_HYBRID_DAY` */
-    static readonly LiteHybridDay: HereMapDesign;
-    /** `MapScheme.LITE_HYBRID_NIGHT` */
-    static readonly LiteHybridNight: HereMapDesign;
-    /** `MapScheme.LOGISTICS_DAY` */
-    static readonly LogisticsDay: HereMapDesign;
-    /** `MapScheme.LOGISTICS_NIGHT` */
-    static readonly LogisticsNight: HereMapDesign;
-    /** `MapScheme.LOGISTICS_HYBRID_DAY` */
-    static readonly LogisticsHybridDay: HereMapDesign;
-    /** `MapScheme.ROAD_NETWORK_DAY` */
-    static readonly RoadNetworkDay: HereMapDesign;
-    /** `MapScheme.ROAD_NETWORK_NIGHT` */
-    static readonly RoadNetworkNight: HereMapDesign;
-    /** `HereMapDesign.Custom(id, attributionRules)` */
-    static Custom(id: string, attributionRules?: readonly AttributionRule[]): HereMapDesign;
-    /**
-     * Mirrors `HereMapDesign.create(id: Int): HereMapDesign` in Android, but
-     * dispatches by the string id rather than the integer enum value.
-     */
-    static create(id: string): HereMapDesign;
-}
 
 /**
  * Port of `HereMapViewControllerInterface.kt` in
@@ -675,20 +621,6 @@ declare class HereViewHolder extends MapViewHolderBase<HTMLElement, H.Map> {
     private viewportToMapPixel;
 }
 
-type HereViewStateInterface = MapViewStateInterface<HereMapDesignType>;
-interface HereViewStateParams {
-    id?: string;
-    mapDesignType?: HereMapDesignType;
-    cameraPosition?: MapCameraPosition;
-}
-declare class HereViewState extends MapViewState<HereMapDesignType> implements HereViewStateInterface {
-    private _mapDesignType;
-    constructor({ id, mapDesignType, cameraPosition, }?: HereViewStateParams);
-    get mapDesignType(): HereMapDesignType;
-    set mapDesignType(value: HereMapDesignType);
-}
-declare function useHereViewState(params?: HereViewStateParams): HereViewStateInterface;
-
 /**
  * Provider entry-point that mirrors the factory portion of `HereMapView.kt`
  * in `android-for-here/.../HereMapView.kt` (the Android composable handles
@@ -853,4 +785,4 @@ interface HereViewInitOptions {
     readonly scheme: string;
 }
 
-export { type HereActualCircle, type HereActualGroundImage, type HereActualMarker, type HereActualPolygon, type HereActualPolyline, type HereConfig, HereDesignId, HereMapDesign, type HereMapDesignType, type HereMapDesignTypeChangeHandler, HereMapView2D, type HereMapView2DProps, HereMapViewController, type HereMapViewControllerInterface, HereMapViewControllerStore, HereProvider, HereViewHolder, type HereViewInitOptions, HereViewState, type HereViewStateInterface, type HereViewStateParams, ZoomAltitudeConverter, geoPointFromLatLng, getHerePlatform, lookAtToMapCameraPosition, mapCameraPositionFrom, setHerePlatform, toAnchor2D, toGeoCoordinates, toGeoPoint, toGeoRect, toGeoRectBounds, toHereDisplayCamera, toHereLookAtData, toMapImage, useHereViewState };
+export { type HereActualCircle, type HereActualGroundImage, type HereActualMarker, type HereActualPolygon, type HereActualPolyline, type HereConfig, HereDesignId, HereMapDesignType, type HereMapDesignTypeChangeHandler, HereMapView2D, type HereMapView2DProps, HereMapViewController, type HereMapViewControllerInterface, HereMapViewControllerStore, HereProvider, HereViewHolder, type HereViewInitOptions, HereViewStateInterface, ZoomAltitudeConverter, geoPointFromLatLng, getHerePlatform, lookAtToMapCameraPosition, mapCameraPositionFrom, setHerePlatform, toAnchor2D, toGeoCoordinates, toGeoPoint, toGeoRect, toGeoRectBounds, toHereDisplayCamera, toHereLookAtData, toMapImage };
