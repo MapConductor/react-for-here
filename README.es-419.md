@@ -73,6 +73,10 @@ import {
 } from '@mapconductor/react-for-here';
 import { createGeoPoint, createMapCameraPosition } from '@mapconductor/js-sdk-core';
 
+// Tu propia clave. Léela del entorno con el mecanismo de tu herramienta de
+// compilación y mantenla fuera del control de versiones.
+const HERE_API_KEY = '…';
+
 const TOKYO = createGeoPoint({ latitude: 35.6812, longitude: 139.7671 });
 const INITIAL_CAMERA = createMapCameraPosition({ position: TOKYO, zoom: 14 });
 
@@ -83,7 +87,7 @@ export default function App() {
   });
   // Crea la plataforma tú mismo para que tu app controle las credenciales de HERE.
   const platform = useMemo(
-    () => new H.service.Platform({ apikey: import.meta.env.VITE_HERE_API_KEY }),
+    () => new H.service.Platform({ apikey: HERE_API_KEY }),
     [],
   );
 
@@ -134,6 +138,10 @@ import {
 } from '@mapconductor/js-sdk-core';
 import { InfoBubble, Marker } from '@mapconductor/js-sdk-react';
 
+// Tu propia clave. Léela del entorno con el mecanismo de tu herramienta de
+// compilación y mantenla fuera del control de versiones.
+const HERE_API_KEY = '…';
+
 const TOKYO = createGeoPoint({ latitude: 35.6812, longitude: 139.7671 });
 const INITIAL_CAMERA = createMapCameraPosition({ position: TOKYO, zoom: 14 });
 
@@ -144,7 +152,7 @@ export default function App() {
   });
   // Crea la plataforma tú mismo para que tu app controle las credenciales de HERE.
   const platform = useMemo(
-    () => new H.service.Platform({ apikey: import.meta.env.VITE_HERE_API_KEY }),
+    () => new H.service.Platform({ apikey: HERE_API_KEY }),
     [],
   );
 
