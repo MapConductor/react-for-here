@@ -59,7 +59,7 @@ export class HereViewHolder extends MapViewHolderBase<HTMLElement, H.Map> {
     const viewport = this.mapView.parentElement;
     const viewportWidth = viewport?.clientWidth ?? mapWidth;
     const viewportHeight = viewport?.clientHeight ?? mapHeight;
-    const bearing = -(this.controller?.getVisualBearing() ?? 0) * Math.PI / 180;
+    const bearing = (this.controller?.getVisualBearing() ?? 0) * Math.PI / 180;
     const tiltScale = Math.cos((this.controller?.getVisualTilt() ?? 0) * Math.PI / 180);
     const x = offset.x - mapWidth / 2;
     const y = (offset.y - mapHeight / 2) * tiltScale;
@@ -75,7 +75,7 @@ export class HereViewHolder extends MapViewHolderBase<HTMLElement, H.Map> {
     const viewport = this.mapView.parentElement;
     const viewportWidth = viewport?.clientWidth ?? mapWidth;
     const viewportHeight = viewport?.clientHeight ?? mapHeight;
-    const bearing = (this.controller?.getVisualBearing() ?? 0) * Math.PI / 180;
+    const bearing = -(this.controller?.getVisualBearing() ?? 0) * Math.PI / 180;
     const tiltScale = Math.max(Math.cos((this.controller?.getVisualTilt() ?? 0) * Math.PI / 180), 0.01);
     const x = offset.x - viewportWidth / 2;
     const y = offset.y - viewportHeight / 2;
