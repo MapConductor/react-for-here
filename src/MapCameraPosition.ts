@@ -11,8 +11,7 @@ import {
   createGeoPoint,
   createMapCameraPosition,
   type MapCameraPosition,
-  type MapCameraPositionInterface,
-} from '@mapconductor/js-sdk-core';
+  type MapCameraPositionInterface, toNativeHeading, bearingFromNativeHeading, } from '@mapconductor/js-sdk-core';
 import { ZoomAltitudeConverter } from './zoom/ZoomAltitudeConverter';
 import { toGeoCoordinates } from './GeoPoint';
 
@@ -80,7 +79,7 @@ export function toHereDisplayCamera(
   const target = computeOffset({
     origin: position.position,
     distance: distanceForward,
-    heading: position.bearing,
+    heading: toNativeHeading(position.bearing),
   });
   const adjustedGoogleZoom = position.zoom
     + NEGATIVE_TILT_ZOOM_OFFSET_AT_MAX_TILT * (tiltAbsDeg / 60);
@@ -145,7 +144,7 @@ export function lookAtToMapCameraPosition(
     return createMapCameraPosition({
       position,
       zoom: googleZoom,
-      bearing: lookAt.heading,
+      bearing: bearingFromNativeHeading(lookAt.heading),
       tilt: pitch,
     });
   }
@@ -180,7 +179,7 @@ export function lookAtToMapCameraPosition(
   return createMapCameraPosition({
     position: originalPosition,
     zoom: originalGoogleZoom,
-    bearing: bear,
+    bearing: bearingFromNativeHeading(bear),
     tilt: -pitchAbsDeg,
   });
 }
