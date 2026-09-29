@@ -28,6 +28,9 @@ export class HereMapDesign implements HereMapDesignType {
     return this.id;
   }
 
+  /** No basemap: an empty base layer, so only what the app adds is drawn. */
+  static readonly None: HereMapDesign = new HereMapDesign('none');
+
   // --- Android aligned singletons -------------------------------------------
 
   /** `MapScheme.NORMAL_DAY` */

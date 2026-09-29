@@ -38,7 +38,7 @@ import {
   isEmptyCameraRestriction,
   type GeoPoint,
 } from '@mapconductor/js-sdk-core';
-import type { HereMapDesignType } from './HereMapDesign';
+import { HereMapDesign, type HereMapDesignType } from './HereMapDesign';
 import type {
   HereMapDesignTypeChangeHandler,
   HereMapViewControllerInterface,
@@ -480,6 +480,9 @@ export function resolveHereBaseLayer(
   platform: H.service.Platform,
   design: HereMapDesignType,
 ): H.map.layer.Layer {
+  // A layer with no provider: the map keeps its size and projection, and
+  // draws nothing under the app's own layers.
+  if (design.id === HereMapDesign.None.id) return new H.map.layer.Layer();
   const config = HERE_RASTER_TILE_CONFIG[design.id] ?? HERE_RASTER_TILE_CONFIG[HereDesignId.NormalDay];
   const rasterTileService = platform.getRasterTileService({
     format: config.format,
