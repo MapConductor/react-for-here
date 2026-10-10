@@ -672,7 +672,7 @@ interface HereMapView2DProps extends MapViewBaseProps<HereViewStateInterface> {
     onError?: (error: Error) => void;
     children?: ReactNode;
 }
-declare function HereMapView2D({ state, onMapLoaded, onMapClick, onMapLongClick, onCameraMoveStart, onCameraMove, onCameraMoveEnd, minZoom, maxZoom, restrictBounds, cameraRestriction, pixelRatio, platform, markerTilingOptions, className, containerStyle, onError, children, }: HereMapView2DProps): react.JSX.Element;
+declare function HereMapView2D({ state, mapStyle, onStyleDiagnostics, onMapLoaded, onMapClick, onMapLongClick, onCameraMoveStart, onCameraMove, onCameraMoveEnd, minZoom, maxZoom, restrictBounds, cameraRestriction, pixelRatio, platform, markerTilingOptions, className, containerStyle, onError, children, }: HereMapView2DProps): react.JSX.Element;
 
 /**
  * 統一ズーム（Google Maps 基準・256px タイル）⇄ 高度の変換。
