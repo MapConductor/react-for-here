@@ -35,6 +35,7 @@ import {
   type MarkerTilingOptions,
   type OverlayCollector,
   mapViewStateInternal,
+  RasterTilePreferenceKey,
 } from '@mapconductor/js-sdk-core';
 import { HereProvider, type HereConfig } from './HereProvider';
 import type { HereViewStateInterface } from './HereViewState';
@@ -255,6 +256,21 @@ export function HereMapView2D({
   useEffect(() => {
     typedControllerRef.current?.setNativeMarkersVisible(!isTilted);
   }, [isTilted, markerStates]);
+
+  // HERE lays a raster tile out in **device** pixels. On a 2x screen a tile
+  // declared as 512 covers 256 CSS px, so the map asks for a zoom one level
+  // deeper and the style is read there: half-size labels, twice the roads.
+  // Google Maps and Leaflet lay theirs out in CSS px and must not be told
+  // this -- which is why it is the provider that says it, not the supplier.
+  useEffect(() => {
+    state.serviceRegistry.put(RasterTilePreferenceKey, {
+      preferredTileSize: 512,
+      layoutInDevicePixels: true,
+    });
+    return () => {
+      state.serviceRegistry.remove(RasterTilePreferenceKey);
+    };
+  }, [state]);
 
 
   useEffect(() => {
