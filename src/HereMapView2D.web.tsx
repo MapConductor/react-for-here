@@ -256,6 +256,7 @@ export function HereMapView2D({
     typedControllerRef.current?.setNativeMarkersVisible(!isTilted);
   }, [isTilted, markerStates]);
 
+
   useEffect(() => {
     if (!containerRef.current) return;
     let cancelled = false;
