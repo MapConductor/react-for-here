@@ -19,6 +19,7 @@ import {
   createMapContextValue,
 } from '@mapconductor/js-sdk-react';
 import {
+  useMapViewStyle,
   useCameraRestriction,
   useMapUISettings,
   useMarkerRenderingSupport,
@@ -34,6 +35,7 @@ import {
   type MarkerTilingOptions,
   type OverlayCollector,
   mapViewStateInternal,
+  RasterTilePreferenceKey,
   markerIconExtentPx,
 } from '@mapconductor/js-sdk-core';
 import { HereProvider, type HereConfig } from './HereProvider';
@@ -153,6 +155,8 @@ function HereTiltMarkerCanvas({
 
 export function HereMapView2D({
   state,
+  mapStyle,
+  onStyleDiagnostics,
   onMapLoaded,
   onMapClick,
   onMapLongClick,
@@ -176,6 +180,10 @@ export function HereMapView2D({
   const [provider] = useState(() => new HereProvider());
   const [scope] = useState(() => new MapViewScope());
   const [controller, setController] = useState<HereMapViewController | null>(null);
+
+  // 地図の見た目。何が起きるかはこのバックエンドが宣言した能力で決まるので、
+  // ここにプロバイダ固有の分岐は無い。
+  useMapViewStyle(state, controller, mapStyle, onStyleDiagnostics);
   const [isReady, setIsReady] = useState(false);
   // `onMapLoaded` と同じ瞬間を「値」として持つ。イベントを取り逃した後から
   // マウントした子（examples の Three.js overlay 等）も読めるようにするため。
@@ -249,6 +257,22 @@ export function HereMapView2D({
   useEffect(() => {
     typedControllerRef.current?.setNativeMarkersVisible(!isTilted);
   }, [isTilted, markerStates]);
+
+  // HERE lays a raster tile out in **device** pixels. On a 2x screen a tile
+  // declared as 512 covers 256 CSS px, so the map asks for a zoom one level
+  // deeper and the style is read there: half-size labels, twice the roads.
+  // Google Maps and Leaflet lay theirs out in CSS px and must not be told
+  // this -- which is why it is the provider that says it, not the supplier.
+  useEffect(() => {
+    state.serviceRegistry.put(RasterTilePreferenceKey, {
+      preferredTileSize: 512,
+      layoutInDevicePixels: true,
+    });
+    return () => {
+      state.serviceRegistry.remove(RasterTilePreferenceKey);
+    };
+  }, [state]);
+
 
   useEffect(() => {
     if (!containerRef.current) return;
@@ -413,7 +437,10 @@ export function HereMapView2D({
       provider.destroy();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [state.mapDesignType.id, minZoom, maxZoom, restrictBounds]);
+    // Design changes are applied live via the controller (see the state's
+    // mapDesignType setter -> controller.setMapDesignType), so the map is not
+    // torn down and re-initialized when only the design changes.
+  }, [minZoom, maxZoom, restrictBounds]);
 
   useMapUISettings(state, controller);
   // マップ生成時 config だけでなく、prop の変化にも追随させる（android-sdk 相当）。

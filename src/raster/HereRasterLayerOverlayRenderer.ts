@@ -58,8 +58,15 @@ export class HereRasterLayerOverlayRenderer
         const prev = p.prev;
         const next = p.current.state;
         if (prev.fingerPrint.source !== p.current.fingerPrint.source) {
+          // Build and attach the replacement first. HERE removes a tile layer
+          // synchronously, while its replacement can take a few event-loop
+          // turns to start requesting tiles. Removing first leaves the map
+          // blank during every style generation change (most visible when
+          // selecting “As authored”).
+          const replacement = await this.addLayer(next);
+          if (replacement === null) return prev.layer;
           await this.removeLayer(prev);
-          return await this.addLayer(next);
+          return replacement;
         }
         // Opacity and visibility are updated in place (opacity via the
         // provider's setOpacity) so the slider doesn't reload every tile.
