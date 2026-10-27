@@ -15,14 +15,16 @@ import {
   AbstractMarkerController,
   LocalTileServer,
   MARKER_HIT_RADIUS_MOUSE_PX,
+  MARKER_HIT_RADIUS_TOUCH_PX,
   MarkerManager,
   MarkerTileRenderer,
   MarkerTilingOptions,
   RasterLayerSource,
-  Settings,
   createDefaultIcon,
   createGeoPoint,
   createRasterLayerState,
+  markerHitShape,
+  pickMarkerHit,
   type GeoPoint,
   type GeoPointInterface,
   type MarkerEntity,
@@ -112,57 +114,40 @@ export class HereMarkerController extends AbstractMarkerController<HereActualMar
   }
 
   /**
-   * Mirrors `find(position: GeoPointInterface)` in Android:
-   * nearest marker within its icon's screen footprint (with tap tolerance).
+   * The pointer behind the tap `find` is about to resolve: a finger gets
+   * `MARKER_HIT_RADIUS_TOUCH_PX` of slop, a mouse none. Set by the map's tap
+   * handler from HERE's `currentPointer.type` (see HereGestureHandlers).
+   */
+  pointerType: 'touch' | 'mouse' = 'mouse';
+
+  /**
+   * Mirrors `find(position: GeoPointInterface)` in Android: the marker whose
+   * drawn pin (label included, `markerHitShape`) is under the tap, else the
+   * nearest within the pointer's slop. Chosen by the core `pickMarkerHit`.
+   *
+   * Markers overlap on screen — especially while tilted, where the CSS rotateX
+   * foreshortens vertical spacing so a lower pin's head covers the pin behind
+   * it — so every marker's on-screen pin is tested, not the geographically
+   * nearest. Of those under the tap, the one with the largest screen y is drawn
+   * last (billboard paint order and native draw order) and wins; only when the
+   * tap is on no pin does the slop come in, so it never lets a far pin beat the
+   * one clicked. The whole square bitmap used to count, plus
+   * `Settings.Default.tapTolerance` (48 px) around it.
    */
   override find(position: GeoPointInterface): MarkerEntity<HereActualMarker> | null {
-    const touchScreen = this.renderer.holder.toScreenOffset(position);
-    const tolerancePx = Settings.Default.tapTolerance;
-
-    // Markers overlap on screen — especially while tilted, where the CSS
-    // rotateX foreshortens vertical spacing so a lower pin's head covers the
-    // pin behind it. Testing only the geographically nearest marker would hit
-    // whichever anchor is closest in lat/lng, not the pin the user actually
-    // clicked. Instead, test every marker's on-screen icon rectangle and return
-    // the top-most one under the cursor: the pin with the largest screen y is
-    // drawn last (matching the billboard paint order and native draw order), so
-    // it is the one visually on top.
-    // First choose among markers whose icon actually covers the tap (no
-    // tolerance): the top-most of those (largest screen y = drawn last = painted
-    // on top) is the pin the user sees under the cursor. Only if the tap lands
-    // on no icon do we fall back to the nearest within the tap tolerance — so
-    // the tolerance can never make a far pin "win" over the pin actually clicked.
-    let bestOnIcon: MarkerEntity<HereActualMarker> | null = null;
-    let bestOnIconScreenY = -Infinity;
-    let bestNear: MarkerEntity<HereActualMarker> | null = null;
-    let bestNearDistSq = Infinity;
-    for (const entity of this.markerManager.allEntities()) {
-      const markerScreen = this.renderer.holder.toScreenOffset(entity.state.position);
-      // bitmapIcon.size already reflects iconSize * scale (see AbstractDefaultIcon.toBitmapIcon).
-      const bitmapIcon = entity.state.icon?.toBitmapIcon() ?? createDefaultIcon().toBitmapIcon();
-      const dx = touchScreen.x - markerScreen.x;
-      const dy = touchScreen.y - markerScreen.y;
-      const left = -bitmapIcon.anchor.x * bitmapIcon.size.width;
-      const right = (1.0 - bitmapIcon.anchor.x) * bitmapIcon.size.width;
-      const top = -bitmapIcon.anchor.y * bitmapIcon.size.height;
-      const bottom = (1.0 - bitmapIcon.anchor.y) * bitmapIcon.size.height;
-      if (dx >= left && dx <= right && dy >= top && dy <= bottom) {
-        if (markerScreen.y > bestOnIconScreenY) {
-          bestOnIconScreenY = markerScreen.y;
-          bestOnIcon = entity;
-        }
-      } else if (
-        dx >= left - tolerancePx && dx <= right + tolerancePx &&
-        dy >= top - tolerancePx && dy <= bottom + tolerancePx
-      ) {
-        const distSq = dx * dx + dy * dy;
-        if (distSq < bestNearDistSq) {
-          bestNearDistSq = distSq;
-          bestNear = entity;
-        }
-      }
-    }
-    return bestOnIcon ?? bestNear;
+    const holder = this.renderer.holder;
+    const tolerance = this.pointerType === 'touch' ? MARKER_HIT_RADIUS_TOUCH_PX : MARKER_HIT_RADIUS_MOUSE_PX;
+    return (
+      pickMarkerHit(
+        holder.toScreenOffset(position),
+        this.markerManager.allEntities(),
+        entity => ({
+          anchorScreen: holder.toScreenOffset(entity.state.position),
+          ...markerHitShape((entity.state.icon ?? createDefaultIcon()).toBitmapIcon()),
+        }),
+        tolerance,
+      )?.item ?? null
+    );
   }
 
   override async update(state: MarkerState): Promise<void> {

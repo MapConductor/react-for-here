@@ -45,6 +45,8 @@ export interface GestureDeps {
 export function handleMapClick(deps: GestureDeps, event: H.map.MapEvent): void {
   const point = toGeoPointFromEvent(deps, event);
   if (!point) return;
+  // A finger gets slop around a marker, a mouse none (see HereMarkerController.find).
+  deps.markerController.pointerType = event.currentPointer?.type === 'touch' ? 'touch' : 'mouse';
 
   // marker → circle → groundImage → polyline → polygon → map の一本道。
   // 順序と先勝ちはコアの BaseMapViewController.dispatchTap が持つ。
