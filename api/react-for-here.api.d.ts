@@ -186,8 +186,24 @@ declare class HereMarkerController extends AbstractMarkerController<HereActualMa
     setNativeMarkersVisible(visible: boolean): void;
     setDraggingState(state: MarkerState, dragging: boolean): void;
     /**
-     * Mirrors `find(position: GeoPointInterface)` in Android:
-     * nearest marker within its icon's screen footprint (with tap tolerance).
+     * The pointer behind the tap `find` is about to resolve: a finger gets
+     * `MARKER_HIT_RADIUS_TOUCH_PX` of slop, a mouse none. Set by the map's tap
+     * handler from HERE's `currentPointer.type` (see HereGestureHandlers).
+     */
+    pointerType: 'touch' | 'mouse';
+    /**
+     * Mirrors `find(position: GeoPointInterface)` in Android: the marker whose
+     * drawn pin (label included, `markerHitShape`) is under the tap, else the
+     * nearest within the pointer's slop. Chosen by the core `pickMarkerHit`.
+     *
+     * Markers overlap on screen — especially while tilted, where the CSS rotateX
+     * foreshortens vertical spacing so a lower pin's head covers the pin behind
+     * it — so every marker's on-screen pin is tested, not the geographically
+     * nearest. Of those under the tap, the one with the largest screen y is drawn
+     * last (billboard paint order and native draw order) and wins; only when the
+     * tap is on no pin does the slop come in, so it never lets a far pin beat the
+     * one clicked. The whole square bitmap used to count, plus
+     * `Settings.Default.tapTolerance` (48 px) around it.
      */
     find(position: GeoPointInterface): MarkerEntity<HereActualMarker> | null;
     update(state: MarkerState): Promise<void>;
