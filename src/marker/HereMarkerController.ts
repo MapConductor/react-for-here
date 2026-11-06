@@ -25,6 +25,7 @@ import {
   createRasterLayerState,
   markerHitShape,
   pickMarkerHit,
+  tilePixelRatio,
   type GeoPoint,
   type GeoPointInterface,
   type MarkerEntity,
@@ -219,7 +220,18 @@ export class HereMarkerController extends AbstractMarkerController<HereActualMar
 
     this.tileRouteId ??= `mc-here-tile-${generateId()}`;
     const server = LocalTileServer.startServer();
-    const renderer = new MarkerTileRenderer<MarkerState>(tiledStates, 256, this.tilingOptions.iconScaleCallback ?? undefined);
+    // Tiles cover 256 CSS pixels and are drawn at the display's ratio, as on
+    // the other providers.
+    const pixelRatio = tilePixelRatio();
+    const renderer = new MarkerTileRenderer<MarkerState>(
+      tiledStates,
+      256,
+      this.tilingOptions.iconScaleCallback ?? undefined,
+      1.0,
+      false,
+      this.tilingOptions.declutterPx,
+      pixelRatio,
+    );
     this.tileRenderer = renderer;
     this.tileVersion++;
     server.register(this.tileRouteId, renderer);
@@ -231,6 +243,7 @@ export class HereMarkerController extends AbstractMarkerController<HereActualMar
       routeId: this.tileRouteId,
       tileSize: 256,
       cacheKey: String(this.tileVersion),
+      pixelRatio,
     });
 
     // A newer sync (or clear()/destroy()) ran while we awaited the service
@@ -241,7 +254,11 @@ export class HereMarkerController extends AbstractMarkerController<HereActualMar
     await this.onRasterLayerUpdate?.(
       createRasterLayerState({
         id: 'mc-marker-tiles',
-        source: RasterLayerSource.UrlTemplate({ template, tileSize: 256 }),
+        // HERE lays raster tiles out in device pixels (`RasterTilePreference.
+        // layoutInDevicePixels`). Declared as 256 on a 2x screen, a tile covers
+        // 128 CSS pixels, HERE asks for one zoom deeper, and every marker and
+        // label comes out at half size.
+        source: RasterLayerSource.UrlTemplate({ template, tileSize: 256 * pixelRatio }),
       }),
     );
   }
