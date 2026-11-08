@@ -10,6 +10,7 @@
 import {
   AbstractPolygonOverlayRenderer,
   densifyAndNormalize,
+  densifyGeodesicRing,
   type PolygonEntity,
   type PolygonState,
 } from '@mapconductor/js-sdk-core';
@@ -98,7 +99,11 @@ function buildLineString(
   // Core pipeline: densify (great-circle when geodesic, linear lat/lng
   // otherwise — Android's straight-line semantics) and normalize into HERE's
   // [-180, 180] longitude range.
-  for (const point of densifyAndNormalize(points, geodesic)) {
+  // geodesic はリングの閉じる辺（末尾 → 先頭）も大圏で補間する（輪郭と同じ曲線にする）。
+  const ring = geodesic
+    ? densifyGeodesicRing(points).map((point) => point.normalize())
+    : densifyAndNormalize(points, false);
+  for (const point of ring) {
     lineString.pushPoint(toGeoCoordinates(point));
   }
   return lineString;
