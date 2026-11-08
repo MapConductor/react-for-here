@@ -338,6 +338,13 @@ declare class HereCircleController extends CircleController<HereActualCircle> {
  */
 
 declare class HereGroundImageOverlayRenderer extends AbstractGroundImageOverlayRenderer<HereViewHolder, HereActualGroundImage> {
+    private provider;
+    /**
+     * Ground images live in an ObjectLayer of their own, in map.getLayers() above the rasters.
+     * In the map's own object layer an `H.map.Overlay` is drawn over the polygons, circles and
+     * polylines whatever its zIndex (it was given -100,000,000 and still covered them).
+     */
+    private objects;
     createGroundImage(state: GroundImageState): Promise<HereActualGroundImage | null>;
     updateGroundImageProperties({ groundImage, current, prev, }: {
         groundImage: HereActualGroundImage;
@@ -416,6 +423,12 @@ declare class HereRasterLayerOverlayRenderer implements RasterLayerOverlayRender
     onPostProcess(): Promise<void>;
     private addLayer;
     private updateLayer;
+    /**
+     * Under the ground-image layer (rasters are the lowest band), ordered by zIndex. Marker tiles
+     * go above it; they still cannot reach above the polygons, which HERE draws in its object
+     * layer over every layer.
+     */
+    private addToMap;
     private removeLayer;
 }
 

@@ -16,6 +16,7 @@ import {
 import type { HereActualPolyline } from '../HereTypeAlias';
 import { HereViewHolder } from '../HereViewHolder';
 import { toGeoCoordinates } from '../GeoPoint';
+import { spatialStackZIndex } from '../helpers';
 
 export class HerePolylineOverlayRenderer extends AbstractPolylineOverlayRenderer<
   HereViewHolder,
@@ -92,6 +93,6 @@ function createStyle(state: PolylineState): H.map.StyleOptions {
 }
 
 function coerceZIndex(zIndex: number): number {
-  // Mirrors `(state.zIndex + 512).coerceIn(512, 1023)` in Android.
-  return Math.max(512, Math.min(1023, zIndex + 512));
+  // Polyline band, above the circles (was `(zIndex + 512).coerceIn(512, 1023)`).
+  return spatialStackZIndex('polyline', zIndex);
 }

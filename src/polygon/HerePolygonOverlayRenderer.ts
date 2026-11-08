@@ -16,6 +16,7 @@ import {
 import type { HereActualPolygon } from '../HereTypeAlias';
 import { HereViewHolder } from '../HereViewHolder';
 import { toGeoCoordinates } from '../GeoPoint';
+import { spatialStackZIndex } from '../helpers';
 
 export class HerePolygonOverlayRenderer extends AbstractPolygonOverlayRenderer<
   HereViewHolder,
@@ -107,6 +108,6 @@ function buildLineString(
 }
 
 function coerceZIndex(zIndex: number): number {
-  // Mirrors `state.zIndex.coerceIn(0, 511)` in Android.
-  return Math.max(0, Math.min(511, zIndex));
+  // Polygon band of the shared stack (was `coerceIn(0, 511)`, shared with circles).
+  return spatialStackZIndex('polygon', zIndex);
 }
