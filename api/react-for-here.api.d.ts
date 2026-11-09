@@ -426,7 +426,8 @@ declare class HereRasterLayerOverlayRenderer implements RasterLayerOverlayRender
     /**
      * Under the ground-image layer (rasters are the lowest band), ordered by zIndex. Marker tiles
      * go above it; they still cannot reach above the polygons, which HERE draws in its object
-     * layer over every layer.
+     * layer over every layer. Polygon tiles go above the ground-image layer too, under the marker
+     * tiles; the natively drawn polygons stay over them.
      */
     private addToMap;
     private removeLayer;
