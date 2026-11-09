@@ -326,13 +326,13 @@ export class HereMapViewController
   // ----- lifecycle -----------------------------------------------------------
 
   async clearOverlays(): Promise<void> {
-    await Promise.all([
-      this.markerController.clear(),
-      this.polylineController.clear(),
-      this.polygonController.clear(),
-      this.groundImageController.clear(),
-      this.circleController.clear(),
-      this.rasterLayerController.clear(),
+    await this.clearOverlayControllers([
+      this.markerController,
+      this.polylineController,
+      this.polygonController,
+      this.groundImageController,
+      this.circleController,
+      this.rasterLayerController,
     ]);
   }
 

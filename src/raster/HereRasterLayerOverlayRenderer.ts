@@ -28,6 +28,7 @@ import {
 } from '@mapconductor/js-sdk-core';
 import type { HereRasterLayerHandle } from './HereRasterLayerHandle';
 import type { HereViewHolder } from '../HereViewHolder';
+import { addStackedLayer } from '../helpers';
 
 interface TileSpec {
   readonly urlTemplate: string;
@@ -98,7 +99,7 @@ export class HereRasterLayerOverlayRenderer
     const tileLayer = new H.map.layer.TileLayer(provider);
     const attached = state.visible !== false;
     if (attached) {
-      this.holder.map.addLayer(tileLayer);
+      this.addToMap(tileLayer, state);
     }
 
     return {
@@ -121,11 +122,21 @@ export class HereRasterLayerOverlayRenderer
     const shouldAttach = state.visible !== false;
     if (shouldAttach === handle.attached) return;
     if (shouldAttach) {
-      this.holder.map.addLayer(handle.layer);
+      this.addToMap(handle.layer, state);
     } else {
       this.holder.map.removeLayer(handle.layer);
     }
     handle.attached = shouldAttach;
+  }
+
+  /**
+   * Under the ground-image layer (rasters are the lowest band), ordered by zIndex. Marker tiles
+   * go above it; they still cannot reach above the polygons, which HERE draws in its object
+   * layer over every layer.
+   */
+  private addToMap(layer: H.map.layer.TileLayer, state: RasterLayerState): void {
+    const markerTiles = state.id === 'mc-marker-tiles';
+    addStackedLayer(this.holder.map, layer, markerTiles ? 'marker' : 'rasterLayer', markerTiles ? 0 : state.zIndex);
   }
 
   private async removeLayer(

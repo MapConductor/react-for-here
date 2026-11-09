@@ -9,13 +9,14 @@
  */
 import {
   AbstractPolygonOverlayRenderer,
-  densifyAndNormalize,
+  densifyPolygonRing,
   type PolygonEntity,
   type PolygonState,
 } from '@mapconductor/js-sdk-core';
 import type { HereActualPolygon } from '../HereTypeAlias';
 import { HereViewHolder } from '../HereViewHolder';
 import { toGeoCoordinates } from '../GeoPoint';
+import { spatialStackZIndex } from '../helpers';
 
 export class HerePolygonOverlayRenderer extends AbstractPolygonOverlayRenderer<
   HereViewHolder,
@@ -98,13 +99,15 @@ function buildLineString(
   // Core pipeline: densify (great-circle when geodesic, linear lat/lng
   // otherwise — Android's straight-line semantics) and normalize into HERE's
   // [-180, 180] longitude range.
-  for (const point of densifyAndNormalize(points, geodesic)) {
+  // リングの閉じる辺（末尾 → 先頭）も他の辺と同じく補間する（輪郭と同じ線にする）。
+  const ring = densifyPolygonRing(points, geodesic).map((point) => point.normalize());
+  for (const point of ring) {
     lineString.pushPoint(toGeoCoordinates(point));
   }
   return lineString;
 }
 
 function coerceZIndex(zIndex: number): number {
-  // Mirrors `state.zIndex.coerceIn(0, 511)` in Android.
-  return Math.max(0, Math.min(511, zIndex));
+  // Polygon band of the shared stack (was `coerceIn(0, 511)`, shared with circles).
+  return spatialStackZIndex('polygon', zIndex);
 }

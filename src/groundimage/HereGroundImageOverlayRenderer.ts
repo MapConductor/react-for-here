@@ -17,17 +17,27 @@ import type { HereActualGroundImage } from '../HereTypeAlias';
 import type { HereGroundImageHandle } from './HereGroundImageHandle';
 import { HereViewHolder } from '../HereViewHolder';
 import { toGeoRect } from '../GeoRectBounds';
-
-// HereMarkerRenderer.resolveDrawOrder() draws markers at
-// `-lat * 1_000_000 - lng`, which ranges over roughly ±90,000,180 depending
-// on position. Staying below that whole range keeps the ground image behind
-// every default-positioned marker, so a translucent overlay never dims them.
-const GROUND_IMAGE_Z_INDEX = -100_000_000;
+import { addStackedLayer } from '../helpers';
 
 export class HereGroundImageOverlayRenderer extends AbstractGroundImageOverlayRenderer<
   HereViewHolder,
   HereActualGroundImage
 > {
+  private provider: H.map.provider.LocalObjectProvider | null = null;
+
+  /**
+   * Ground images live in an ObjectLayer of their own, in map.getLayers() above the rasters.
+   * In the map's own object layer an `H.map.Overlay` is drawn over the polygons, circles and
+   * polylines whatever its zIndex (it was given -100,000,000 and still covered them).
+   */
+  private objects(): ReturnType<H.map.provider.LocalObjectProvider['getRootGroup']> {
+    if (this.provider == null) {
+      this.provider = new H.map.provider.LocalObjectProvider();
+      addStackedLayer(this.holder.map, new H.map.layer.ObjectLayer(this.provider), 'groundImage');
+    }
+    return this.provider.getRootGroup();
+  }
+
   override async createGroundImage(
     state: GroundImageState,
   ): Promise<HereActualGroundImage | null> {
@@ -37,10 +47,9 @@ export class HereGroundImageOverlayRenderer extends AbstractGroundImageOverlayRe
     const image = await loadImage(state.imageUrl);
     const overlay = new H.map.Overlay(rect, image, {
       opacity: state.opacity,
-      zIndex: GROUND_IMAGE_Z_INDEX,
       data: state.id,
     });
-    this.holder.map.addObject(overlay);
+    this.objects().addObject(overlay);
 
     const handle: HereGroundImageHandle = {
       routeId: `groundimage-${state.id}`,
@@ -95,7 +104,7 @@ export class HereGroundImageOverlayRenderer extends AbstractGroundImageOverlayRe
     entity: GroundImageEntity<HereActualGroundImage>,
   ): Promise<void> {
     if (entity.groundImage) {
-      this.holder.map.removeObject((entity.groundImage as HereGroundImageHandle).overlay);
+      this.objects().removeObject((entity.groundImage as HereGroundImageHandle).overlay);
     }
   }
 }
