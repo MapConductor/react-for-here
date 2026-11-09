@@ -23,9 +23,11 @@
  * events (no separate "move end" callback); Android synthesizes a "move end"
  * via an idle job (CAMERA_MOVE_END_IDLE_MS = 120L). We replicate that here.
  */
-import { PolygonTiler, POLYGON_TILE_LAYER_ID, polygonTileRasterLayerState } from '@mapconductor/js-sdk-core';
 import {
   BaseMapViewController,
+  PolygonTiler,
+  POLYGON_TILE_LAYER_ID,
+  polygonTileRasterLayerState,
   MapUISettings,
   computeFitBoundsCameraPosition,
   type GeoRectBounds,
