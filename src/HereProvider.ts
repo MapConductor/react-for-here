@@ -6,7 +6,7 @@
  */
 import {
   MapProvider,
-  MarkerTilingOptions,
+  MarkerTilingOptions, PolylineTiler, PolylineTilingOptions,
   type MapConfig,
   type MapViewControllerInterface,
   type GeoRectBounds,
@@ -40,6 +40,11 @@ export interface HereConfig extends MapConfig {
   platform?: H.service.Platform;
   /** Marker tiling options; large static marker sets render as a raster overlay. */
   markerTilingOptions?: MarkerTilingOptions;
+  /**
+   * When to draw polylines as raster tiles; {@link PolylineTilingOptions.Default} if omitted.
+   * The controller's `setPolylineTilingOptions` replaces it later.
+   */
+  polylineTilingOptions?: PolylineTilingOptions;
 }
 
 export class HereProvider extends MapProvider {
@@ -130,6 +135,9 @@ export class HereProvider extends MapProvider {
       config.markerTilingOptions ?? MarkerTilingOptions.Default,
     );
     const polylineController = new HerePolylineController(new HerePolylineOverlayRenderer(holder));
+    // Many polylines are drawn as tiles by the tile service worker and shown as one raster
+    // layer (the view controller mounts it); taps still resolve against the original paths.
+    polylineController.tiler = new PolylineTiler(config.polylineTilingOptions ?? PolylineTilingOptions.Default);
     const polygonController = new HerePolygonController(new HerePolygonOverlayRenderer(holder));
     const circleController = new HereCircleController(new HereCircleOverlayRenderer(holder));
     const groundImageController = new HereGroundImageController(

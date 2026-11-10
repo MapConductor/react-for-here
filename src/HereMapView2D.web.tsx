@@ -21,7 +21,7 @@ import {
 import {
   useMapViewStyle,
   useCameraRestriction,
-  useMapUISettings,
+  useMapUISettings, usePolylineTilingOptions,
   useMarkerRenderingSupport,
 } from '@mapconductor/js-sdk-react/internal';
 import {
@@ -32,7 +32,7 @@ import {
   type MapViewBaseProps,
   type MarkerAnimationOverlayEntry,
   type MarkerState,
-  type MarkerTilingOptions,
+  type MarkerTilingOptions, type PolylineTilingOptions,
   type OverlayCollector,
   mapViewStateInternal,
   RasterTilePreferenceKey,
@@ -51,6 +51,12 @@ export interface HereMapView2DProps extends MapViewBaseProps<HereViewStateInterf
   pixelRatio?: number;
   /** Tiling options for large marker sets (renders them as a raster overlay). */
   markerTilingOptions?: MarkerTilingOptions;
+  /**
+   * When to draw polylines as raster tiles ({@link PolylineTilingOptions.Default} if omitted).
+   * Read when the map is created; a later value applies from the next time the polylines are
+   * handed to the map.
+   */
+  polylineTilingOptions?: PolylineTilingOptions;
   /**
    * The HERE `H.service.Platform` instance configured with your credentials.
    * If omitted, a default unauthenticated platform is constructed. Provide
@@ -170,6 +176,7 @@ export function HereMapView2D({
   pixelRatio,
   platform,
   markerTilingOptions,
+  polylineTilingOptions,
   className,
   containerStyle,
   onError,
@@ -290,6 +297,7 @@ export function HereMapView2D({
       pixelRatio,
       platform,
       markerTilingOptions,
+      polylineTilingOptions,
     };
 
     provider
@@ -443,6 +451,7 @@ export function HereMapView2D({
   }, [minZoom, maxZoom, restrictBounds]);
 
   useMapUISettings(state, controller);
+  usePolylineTilingOptions(controller, polylineTilingOptions);
   // マップ生成時 config だけでなく、prop の変化にも追随させる（android-sdk 相当）。
   useCameraRestriction(controller, { cameraRestriction, restrictBounds, minZoom, maxZoom });
 
