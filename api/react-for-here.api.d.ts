@@ -1,7 +1,7 @@
 /// <reference path="./here.d.ts" />
 import { HereMapDesignType, HereViewStateInterface } from './state.js';
 export { HereMapDesign, HereViewState, HereViewStateParams, useHereViewState } from './state.js';
-import { MarkerCapable, PolygonCapable, PolylineCapable, CircleCapable, GroundImageCapable, RasterLayerCapable, OnMapInitializedHandler, AbstractMarkerOverlayRenderer, MarkerManager, AddParams, ChangeParams, MarkerEntity, GeoPoint, AbstractMarkerController, RasterLayerState, MarkerTilingOptions, MarkerState, GeoPointInterface, AbstractPolylineOverlayRenderer, PolylineState, PolylineEntity, PolylineController, AbstractPolygonOverlayRenderer, PolygonState, PolygonEntity, PolygonController, AbstractCircleOverlayRenderer, CircleState, CircleEntity, CircleController, AbstractGroundImageOverlayRenderer, GroundImageState, GroundImageEntity, GroundImageController, RasterLayerOverlayRenderer, RasterLayerAddParams, RasterLayerChangeParams, RasterLayerEntity, MapCameraPosition, RasterLayerController, RasterHeaderSupport, BaseMapViewController, MapViewControllerInterface, GeoRectBounds, MapUISettings, CameraRestriction, OnMarkerEventHandler, MapViewHolderBase, Offset, MapConfig, PolylineTilingOptions, MapProvider, MapViewBaseProps, WebMercatorZoomAltitudeConverter, MapCameraPositionInterface, BitmapIcon } from '@mapconductor/js-sdk-core';
+import { MarkerCapable, PolygonCapable, PolylineCapable, CircleCapable, GroundImageCapable, RasterLayerCapable, OnMapInitializedHandler, AbstractMarkerOverlayRenderer, MarkerManager, AddParams, ChangeParams, MarkerEntity, GeoPoint, AbstractMarkerController, RasterLayerState, MarkerTilingOptions, MarkerState, GeoPointInterface, AbstractPolylineOverlayRenderer, PolylineState, PolylineEntity, PolylineController, AbstractPolygonOverlayRenderer, PolygonState, PolygonEntity, PolygonController, AbstractCircleOverlayRenderer, CircleState, CircleEntity, CircleController, AbstractGroundImageOverlayRenderer, GroundImageState, GroundImageEntity, GroundImageController, RasterLayerOverlayRenderer, RasterLayerAddParams, RasterLayerChangeParams, RasterLayerEntity, MapCameraPosition, RasterLayerController, RasterHeaderSupport, BaseMapViewController, MapViewControllerInterface, GeoRectBounds, MapUISettings, CameraRestriction, OnMarkerEventHandler, MapViewHolderBase, Offset, MapConfig, PolylineTilingOptions, CircleTilingOptions, MapProvider, MapViewBaseProps, WebMercatorZoomAltitudeConverter, MapCameraPositionInterface, BitmapIcon } from '@mapconductor/js-sdk-core';
 import * as react from 'react';
 import { CSSProperties, ReactNode } from 'react';
 
@@ -426,8 +426,9 @@ declare class HereRasterLayerOverlayRenderer implements RasterLayerOverlayRender
     /**
      * Under the ground-image layer (rasters are the lowest band), ordered by zIndex. Marker tiles
      * go above it; they still cannot reach above the polygons, which HERE draws in its object
-     * layer over every layer. Polygon tiles go above the ground-image layer too, then the polyline
-     * tiles, under the marker tiles; the natively drawn polygons and polylines stay over them.
+     * layer over every layer. Polygon tiles go above the ground-image layer too, then the circle
+     * tiles, then the polyline tiles, under the marker tiles; the natively drawn polygons, circles and
+     * polylines stay over them.
      */
     private addToMap;
     private removeLayer;
@@ -676,6 +677,11 @@ interface HereConfig extends MapConfig {
      * The controller's `setPolylineTilingOptions` replaces it later.
      */
     polylineTilingOptions?: PolylineTilingOptions;
+    /**
+     * When to draw circles as raster tiles; {@link CircleTilingOptions.Default} if omitted.
+     * The controller's `setCircleTilingOptions` replaces it later.
+     */
+    circleTilingOptions?: CircleTilingOptions;
 }
 declare class HereProvider extends MapProvider {
     private initializing;
@@ -702,6 +708,12 @@ interface HereMapView2DProps extends MapViewBaseProps<HereViewStateInterface> {
      */
     polylineTilingOptions?: PolylineTilingOptions;
     /**
+     * When to draw circles as raster tiles ({@link CircleTilingOptions.Default} if omitted).
+     * Read when the map is created; a later value applies from the next time the circles are
+     * handed to the map.
+     */
+    circleTilingOptions?: CircleTilingOptions;
+    /**
      * The HERE `H.service.Platform` instance configured with your credentials.
      * If omitted, a default unauthenticated platform is constructed. Provide
      * this from your own code so that the host page keeps control of HERE
@@ -713,7 +725,7 @@ interface HereMapView2DProps extends MapViewBaseProps<HereViewStateInterface> {
     onError?: (error: Error) => void;
     children?: ReactNode;
 }
-declare function HereMapView2D({ state, mapStyle, onStyleDiagnostics, onMapLoaded, onMapClick, onMapLongClick, onCameraMoveStart, onCameraMove, onCameraMoveEnd, minZoom, maxZoom, restrictBounds, cameraRestriction, pixelRatio, platform, markerTilingOptions, polylineTilingOptions, className, containerStyle, onError, children, }: HereMapView2DProps): react.JSX.Element;
+declare function HereMapView2D({ state, mapStyle, onStyleDiagnostics, onMapLoaded, onMapClick, onMapLongClick, onCameraMoveStart, onCameraMove, onCameraMoveEnd, minZoom, maxZoom, restrictBounds, cameraRestriction, pixelRatio, platform, markerTilingOptions, polylineTilingOptions, circleTilingOptions, className, containerStyle, onError, children, }: HereMapView2DProps): react.JSX.Element;
 
 /**
  * 統一ズーム（Google Maps 基準・256px タイル）⇄ 高度の変換。

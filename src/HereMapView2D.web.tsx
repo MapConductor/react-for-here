@@ -21,7 +21,7 @@ import {
 import {
   useMapViewStyle,
   useCameraRestriction,
-  useMapUISettings, usePolylineTilingOptions,
+  useMapUISettings, usePolylineTilingOptions, useCircleTilingOptions,
   useMarkerRenderingSupport,
 } from '@mapconductor/js-sdk-react/internal';
 import {
@@ -32,7 +32,7 @@ import {
   type MapViewBaseProps,
   type MarkerAnimationOverlayEntry,
   type MarkerState,
-  type MarkerTilingOptions, type PolylineTilingOptions,
+  type MarkerTilingOptions, type PolylineTilingOptions, type CircleTilingOptions,
   type OverlayCollector,
   mapViewStateInternal,
   RasterTilePreferenceKey,
@@ -57,6 +57,12 @@ export interface HereMapView2DProps extends MapViewBaseProps<HereViewStateInterf
    * handed to the map.
    */
   polylineTilingOptions?: PolylineTilingOptions;
+  /**
+   * When to draw circles as raster tiles ({@link CircleTilingOptions.Default} if omitted).
+   * Read when the map is created; a later value applies from the next time the circles are
+   * handed to the map.
+   */
+  circleTilingOptions?: CircleTilingOptions;
   /**
    * The HERE `H.service.Platform` instance configured with your credentials.
    * If omitted, a default unauthenticated platform is constructed. Provide
@@ -177,6 +183,7 @@ export function HereMapView2D({
   platform,
   markerTilingOptions,
   polylineTilingOptions,
+  circleTilingOptions,
   className,
   containerStyle,
   onError,
@@ -298,6 +305,7 @@ export function HereMapView2D({
       platform,
       markerTilingOptions,
       polylineTilingOptions,
+      circleTilingOptions,
     };
 
     provider
@@ -452,6 +460,7 @@ export function HereMapView2D({
 
   useMapUISettings(state, controller);
   usePolylineTilingOptions(controller, polylineTilingOptions);
+  useCircleTilingOptions(controller, circleTilingOptions);
   // マップ生成時 config だけでなく、prop の変化にも追随させる（android-sdk 相当）。
   useCameraRestriction(controller, { cameraRestriction, restrictBounds, minZoom, maxZoom });
 
