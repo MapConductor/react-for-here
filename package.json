@@ -27,7 +27,7 @@
     "postbuild": "node -e \"const fs=require('fs');fs.copyFileSync('src/here.d.ts','dist/here.d.ts');for(const f of ['dist/index.d.ts','dist/index.d.mts']){fs.writeFileSync(f,'/// <reference path=\\\"./here.d.ts\\\" />\\n'+fs.readFileSync(f,'utf8'));}\"",
     "dev": "tsup src/index.ts --format cjs,esm --watch",
     "clean": "rm -rf dist",
-    "test": "echo 'No tests yet'"
+    "test": "node --test \"test/**/*.test.mjs\""
   },
   "keywords": [
     "maps",
