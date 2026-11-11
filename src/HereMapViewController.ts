@@ -67,6 +67,7 @@ import {
   handleMarkerDrag,
   handleMarkerDragEnd,
   handleMarkerDragStart,
+  installTransformedGestures,
   type GestureDeps,
 } from './HereGestureHandlers';
 
@@ -117,6 +118,8 @@ export class HereMapViewController
     };
   }
 
+  /** @internal */
+  private uninstallTransformedGestures: () => void = () => {};
   private readonly onMapChangeHandler = () => this.camera.onChange();
   private readonly onMapChangeEndHandler = () => this.camera.onChangeEnd();
   private readonly onMapClickHandler = (event: H.map.MapEvent) => handleMapClick(this.gestureDeps, event);
@@ -272,6 +275,7 @@ export class HereMapViewController
     map.addEventListener('dragstart', this.onMarkerDragStartHandler as never);
     map.addEventListener('drag', this.onMarkerDragHandler as never);
     map.addEventListener('dragend', this.onMarkerDragEndHandler as never);
+    this.uninstallTransformedGestures = installTransformedGestures(() => this.gestureDeps);
   }
 
   private detachListeners(): void {
@@ -283,6 +287,8 @@ export class HereMapViewController
     map.removeEventListener('dragstart', this.onMarkerDragStartHandler as never);
     map.removeEventListener('drag', this.onMarkerDragHandler as never);
     map.removeEventListener('dragend', this.onMarkerDragEndHandler as never);
+    this.uninstallTransformedGestures();
+    this.uninstallTransformedGestures = () => {};
   }
 
   // ----- camera (mirrors moveCamera / animateCamera / fitBounds) -------------
