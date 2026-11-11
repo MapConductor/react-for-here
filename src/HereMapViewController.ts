@@ -480,9 +480,12 @@ export const HereDesignId = {
 
 /**
  * Per-scheme Raster Tile API v3 parameters (`resource`/`style`/`format`),
- * keyed by `HereDesignId`. Only the `normal` scheme ships a night variant;
- * satellite and terrain fall back to their day imagery since HERE doesn't
- * bundle one.
+ * keyed by the design id. v3 has no night variant of the satellite-backed
+ * styles, so the hybrid night designs fall back to their day imagery. v3 also
+ * has no road-network style: `RoadNetwork*` uses the `lite` style without
+ * labels (`background`), the closest to "roads only, no labels or buildings".
+ * Every `HereMapDesign` the SDK defines must have an entry here; ids that
+ * are not listed (e.g. `HereMapDesign.Custom`) fall back to `normal.day`.
  *
  * We build these tiles directly via `H.service.rasterTile.Provider` instead
  * of using `platform.createDefaultLayers()`'s bundled `raster.*` layers:
@@ -503,6 +506,15 @@ const HERE_RASTER_TILE_CONFIG: Record<
   [HereDesignId.HybridDay]: { resource: 'base', style: 'explore.satellite.day', format: 'png8' },
   [HereDesignId.HybridNight]: { resource: 'base', style: 'explore.satellite.day', format: 'png8' },
   [HereDesignId.TerrainDay]: { resource: 'base', style: 'topo.day', format: 'png8' },
+  [HereMapDesign.LiteDay.id]: { resource: 'base', style: 'lite.day', format: 'png8' },
+  [HereMapDesign.LiteNight.id]: { resource: 'base', style: 'lite.night', format: 'png8' },
+  [HereMapDesign.LiteHybridDay.id]: { resource: 'base', style: 'lite.satellite.day', format: 'png8' },
+  [HereMapDesign.LiteHybridNight.id]: { resource: 'base', style: 'lite.satellite.day', format: 'png8' },
+  [HereMapDesign.LogisticsDay.id]: { resource: 'base', style: 'logistics.day', format: 'png8' },
+  [HereMapDesign.LogisticsNight.id]: { resource: 'base', style: 'logistics.night', format: 'png8' },
+  [HereMapDesign.LogisticsHybridDay.id]: { resource: 'base', style: 'logistics.satellite.day', format: 'png8' },
+  [HereMapDesign.RoadNetworkDay.id]: { resource: 'background', style: 'lite.day', format: 'png8' },
+  [HereMapDesign.RoadNetworkNight.id]: { resource: 'background', style: 'lite.night', format: 'png8' },
 };
 
 export function resolveHereBaseLayer(
