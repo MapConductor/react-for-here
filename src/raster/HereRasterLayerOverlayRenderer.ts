@@ -27,6 +27,7 @@ import {
   type RasterLayerState,
   POLYGON_TILE_LAYER_ID,
   POLYLINE_TILE_LAYER_ID,
+  CIRCLE_TILE_LAYER_ID,
 } from '@mapconductor/js-sdk-core';
 import type { HereRasterLayerHandle } from './HereRasterLayerHandle';
 import type { HereViewHolder } from '../HereViewHolder';
@@ -134,12 +135,14 @@ export class HereRasterLayerOverlayRenderer
   /**
    * Under the ground-image layer (rasters are the lowest band), ordered by zIndex. Marker tiles
    * go above it; they still cannot reach above the polygons, which HERE draws in its object
-   * layer over every layer. Polygon tiles go above the ground-image layer too, then the polyline
-   * tiles, under the marker tiles; the natively drawn polygons and polylines stay over them.
+   * layer over every layer. Polygon tiles go above the ground-image layer too, then the circle
+   * tiles, then the polyline tiles, under the marker tiles; the natively drawn polygons, circles and
+   * polylines stay over them.
    */
   private addToMap(layer: H.map.layer.TileLayer, state: RasterLayerState): void {
     if (state.id === 'mc-marker-tiles') addStackedLayer(this.holder.map, layer, 'marker', 0);
     else if (state.id === POLYGON_TILE_LAYER_ID) addStackedLayer(this.holder.map, layer, 'polygon', 0);
+    else if (state.id === CIRCLE_TILE_LAYER_ID) addStackedLayer(this.holder.map, layer, 'circle', 0);
     else if (state.id === POLYLINE_TILE_LAYER_ID) addStackedLayer(this.holder.map, layer, 'polyline', 0);
     else addStackedLayer(this.holder.map, layer, 'rasterLayer', state.zIndex);
   }
