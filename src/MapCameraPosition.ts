@@ -66,7 +66,11 @@ export function toHereDisplayCamera(
   // rendering with abs(tilt).
   const tiltAbsDeg = Math.min(Math.max(Math.abs(position.tilt), 0), 60);
   const tiltAbsRad = (tiltAbsDeg * Math.PI) / 180;
-  const hereZoomOrig = ZoomAltitudeConverter.googleZoomToHereZoom(position.zoom, position.position.latitude);
+  // Snap the requested zoom the same way as the tilt >= 0 branch; the tilt
+  // offset added below is a geometric correction, not a zoom level, so it
+  // stays fractional.
+  const googleZoom = snapZoom ? snapZoomToGoogle(position.zoom) : position.zoom;
+  const hereZoomOrig = ZoomAltitudeConverter.googleZoomToHereZoom(googleZoom, position.position.latitude);
   const altitude = converter.zoomLevelToAltitude({
     zoomLevel: hereZoomOrig,
     latitude: position.position.latitude,
@@ -81,7 +85,7 @@ export function toHereDisplayCamera(
     distance: distanceForward,
     heading: toNativeHeading(position.bearing),
   });
-  const adjustedGoogleZoom = position.zoom
+  const adjustedGoogleZoom = googleZoom
     + NEGATIVE_TILT_ZOOM_OFFSET_AT_MAX_TILT * (tiltAbsDeg / 60);
   const adjustedHereZoom = ZoomAltitudeConverter.googleZoomToHereZoom(
     adjustedGoogleZoom,
