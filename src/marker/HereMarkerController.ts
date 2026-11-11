@@ -160,6 +160,32 @@ export class HereMarkerController extends AbstractMarkerController<HereActualMar
     return this.selected?.state.id === state.id || this.markerManager.hasEntity(state.id);
   }
 
+  /**
+   * Starts a marker drag driven from screen space. While the 2D view tilts or
+   * rotates its plane the native markers are hidden behind upright
+   * billboards, so their own drag cannot start; the view controller hit-tests
+   * the billboards and drives the drag through these three calls.
+   *
+   * @internal
+   */
+  beginScreenDrag(state: MarkerState): void {
+    this.setDraggingState(state, true);
+    this.dispatchDragStart(state);
+  }
+
+  /** @internal */
+  moveScreenDrag(state: MarkerState, position: GeoPoint): void {
+    this.applyDragPosition(state, position);
+    this.dispatchDrag(state);
+  }
+
+  /** @internal */
+  endScreenDrag(state: MarkerState): void {
+    this.setDraggingState(state, false);
+    this.dispatchDragEnd(state);
+    void this.update(state);
+  }
+
   // Mirrors Android's `applyDragPosition` helper: keeps the dragged marker's
   // state in sync with the provider marker position during a drag.
   applyDragPosition(state: MarkerState, position: GeoPoint): void {
