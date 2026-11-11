@@ -143,11 +143,11 @@ export class HereProvider extends MapProvider {
     // Many polylines are drawn as tiles by the tile service worker and shown as one raster
     // layer (the view controller mounts it); taps still resolve against the original paths.
     polylineController.tiler = new PolylineTiler(config.polylineTilingOptions ?? PolylineTilingOptions.Default);
+    const polygonController = new HerePolygonController(new HerePolygonOverlayRenderer(holder));
+    const circleController = new HereCircleController(new HereCircleOverlayRenderer(holder));
     // Many circles are drawn as tiles too, shown as one raster layer at the bottom of the circle
     // band (the view controller mounts it); taps still resolve against the original circles.
     circleController.tiler = new CircleTiler(config.circleTilingOptions ?? CircleTilingOptions.Default);
-    const polygonController = new HerePolygonController(new HerePolygonOverlayRenderer(holder));
-    const circleController = new HereCircleController(new HereCircleOverlayRenderer(holder));
     const groundImageController = new HereGroundImageController(
       new HereGroundImageOverlayRenderer(holder),
     );
