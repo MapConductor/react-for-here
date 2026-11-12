@@ -9,8 +9,8 @@ import type { HereMapDesignTypeChangeHandler } from './HereMapViewControllerInte
  * ジェスチャー設定と地図デザインの反映。
  *
  * HERE の `Behavior` はジェスチャーをビットマスクで受けるので、パンと 3 つの
- * ズーム操作を個別に切り替えられる。地図は P2D エンジンで動いており、
- * bearing / tilt は MapConductor が CSS の変形で作っているため、
+ * ズーム操作を個別に切り替えられる。bearing / tilt は MapConductor が
+ * CSS の変形で作っているため、
  * 回転・傾斜のジェスチャーはここには無い。
  */
 export interface SettingsDeps {
@@ -23,8 +23,8 @@ export interface SettingsDeps {
  * `Behavior` takes a bitmask of the gestures to switch, so pan and the three
  * zoom gestures can be gated individually.
  *
- * The map runs on the P2D engine and MapConductor fakes bearing and tilt with
- * a CSS transform on top of it, so there is no rotate or tilt gesture here.
+ * MapConductor fakes bearing and tilt with a CSS transform on top of the map,
+ * so there is no rotate or tilt gesture here.
  */
 export function applyGestureSettings(deps: SettingsDeps, settings: MapUISettings): void {
   const Feature = H.mapevents.Behavior.Feature;

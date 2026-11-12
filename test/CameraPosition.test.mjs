@@ -65,8 +65,8 @@ test('the lookAt carries position and zoom only: bearing and tilt are drawn by C
     assert.equal(lookAt.position.lng, 20);
     assert.equal(lookAt.position.alt, 0);
     assert.equal(lookAt.zoom, 7);
-    assert.equal(lookAt.heading, 0);
-    assert.equal(lookAt.tilt, 0);
+    assert.equal('heading' in lookAt, false);
+    assert.equal('tilt' in lookAt, false);
     assert.equal(toHereLookAtData(cam({ zoom: 6.6 }), { snapZoom: false }).zoom, 6.6);
 });
 

@@ -88,7 +88,6 @@ export function installFakeHere() {
             provider: { ImageTileProvider, LocalObjectProvider },
         },
         service: { rasterTile: { Provider: RasterTileProvider } },
-        Map: { EngineType: { P2D: 'P2D' } },
     };
     return globalThis.H;
 }

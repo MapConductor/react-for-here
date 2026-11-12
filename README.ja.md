@@ -21,12 +21,11 @@ npm install @mapconductor/react-for-here @mapconductor/js-sdk-core @mapconductor
 HERE Maps API for JavaScript は npm では配布されていません。ホストページで HERE の CDN からロードしてください。本パッケージはこれらのスクリプトが公開するグローバル `H` を前提としています:
 
 ```html
-<script src="https://js.api.here.com/v3/3.1/mapsjs-core.js"></script>
-<script src="https://js.api.here.com/v3/3.1/mapsjs-core-legacy.js"></script>
-<script src="https://js.api.here.com/v3/3.1/mapsjs-service.js"></script>
-<script src="https://js.api.here.com/v3/3.1/mapsjs-ui.js"></script>
-<script src="https://js.api.here.com/v3/3.1/mapsjs-mapevents.js"></script>
-<link rel="stylesheet" href="https://js.api.here.com/v3/3.1/mapsjs-ui.css" />
+<script src="https://js.api.here.com/v3/3.2/mapsjs-core.js"></script>
+<script src="https://js.api.here.com/v3/3.2/mapsjs-service.js"></script>
+<script src="https://js.api.here.com/v3/3.2/mapsjs-ui.js"></script>
+<script src="https://js.api.here.com/v3/3.2/mapsjs-mapevents.js"></script>
+<link rel="stylesheet" href="https://js.api.here.com/v3/3.2/mapsjs-ui.css" />
 ```
 
 また、[HERE platform](https://platform.here.com/) の API キーが必要です。

@@ -122,10 +122,6 @@ export class HereProvider extends MapProvider {
         center: { lat: center.latitude, lng: center.longitude },
         zoom,
         pixelRatio: config.pixelRatio ?? window.devicePixelRatio,
-        // The WebGL renderer in HERE Maps API 3.1 flips Raster Tile API v3
-        // textures vertically. P2D renders the tiles in their source
-        // orientation and must match the provider's engine type.
-        engineType: H.Map.EngineType.P2D,
       },
     );
     // Enable basic pan/zoom interactions. Mirrors the implicit behaviour of
@@ -133,6 +129,9 @@ export class HereProvider extends MapProvider {
     // not the map directly.
     const mapEvents = new H.mapevents.MapEvents(map);
     const behavior = new H.mapevents.Behavior(mapEvents);
+    // Bearing and tilt are drawn with CSS (see HereMapSettings), so the
+    // native camera must not rotate or tilt under the user's fingers.
+    behavior.disable(H.mapevents.Behavior.Feature.TILT | H.mapevents.Behavior.Feature.HEADING);
 
     const holder = new HereViewHolder(container, map, behavior);
     const markerController = HereMarkerController.create(

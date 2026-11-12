@@ -1,5 +1,5 @@
 /**
- * Minimal ambient declarations for the HERE Maps API for JavaScript (v3.1).
+ * Minimal ambient declarations for the HERE Maps API for JavaScript (v3.2).
  *
  * The HERE Maps API for JavaScript is loaded from a CDN as a global `H`
  * namespace; consumers are expected to add the corresponding `<script>` tags
@@ -56,7 +56,7 @@ declare global {
     }
 
     class Map {
-      static readonly EngineType: { P2D: number; WEBGL: number; HARP: number };
+      static readonly EngineType: { HARP: number };
 
       constructor(
         element: HTMLElement,
