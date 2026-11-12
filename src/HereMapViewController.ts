@@ -28,6 +28,7 @@ import {
   PolygonTiler,
   POLYGON_TILE_LAYER_ID,
   polygonTileRasterLayerState, POLYLINE_TILE_LAYER_ID, polylineTileRasterLayerState, CIRCLE_TILE_LAYER_ID, circleTileRasterLayerState,
+  MapPaddings,
   MapUISettings,
   computeFitBoundsCameraPosition,
   type GeoRectBounds,
@@ -324,7 +325,9 @@ export class HereMapViewController
       bearing: current.bearing,
     });
     if (!fit) return Promise.resolve(false);
-    const target = current.copy({ position: fit.center, zoom: fit.zoom });
+    // Paddings: none. `current` carries the last move's paddings, and copying
+    // them would shift the fitted center by them (MapLibre clears them on a fit).
+    const target = current.copy({ position: fit.center, zoom: fit.zoom, paddings: MapPaddings.Zeros });
     // snapZoom:false — keep the fractional fit zoom so the bounds fit precisely
     // and `padding` has a visible effect.
     return this.camera.apply(target, { animated: false, snapZoom: false });
