@@ -80,7 +80,7 @@ test('base layers use the Raster Tile API v3 parameters per scheme', () => {
         const layer = resolveHereBaseLayer(platform, design);
         assert.equal(layer.kind, 'tile');
         assert.deepEqual(platform.requests.at(-1), { format, tileSize: 512, resource, queryParams: { style } });
-        assert.deepEqual(layer.getProvider().options, { engineType: 'P2D', tileSize: 512 });
+        assert.deepEqual(layer.getProvider().options, { tileSize: 512 });
     }
 });
 

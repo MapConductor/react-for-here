@@ -159,7 +159,7 @@ test('apply without animation commits the lookAt immediately', async () => {
     const { data, animated } = map.lookAtCalls[0];
     assert.equal(animated, false);
     assert.deepEqual({ ...data, position: { ...data.position } },
-        { position: { lat: 10, lng: 20, alt: 0 }, zoom: 6, heading: 0, tilt: 0 });
+        { position: { lat: 10, lng: 20, alt: 0 }, zoom: 6 });
     await camera.apply(position(10, 20, 5.6), { animated: false, snapZoom: false });
     assert.equal(map.lookAtCalls[1].data.zoom, 5.6);
 });

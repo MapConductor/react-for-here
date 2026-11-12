@@ -540,10 +540,7 @@ export function resolveHereBaseLayer(
     resource: config.resource,
     queryParams: { style: config.style },
   });
-  const provider = new H.service.rasterTile.Provider(rasterTileService, {
-    engineType: H.Map.EngineType.P2D,
-    tileSize: 512,
-  });
+  const provider = new H.service.rasterTile.Provider(rasterTileService, { tileSize: 512 });
   return new H.map.layer.TileLayer(provider);
 }
 

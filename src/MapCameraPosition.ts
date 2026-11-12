@@ -108,10 +108,10 @@ export function toHereLookAtData(
   return {
     position: toGeoCoordinates(display.target),
     zoom: display.hereZoomLevel,
-    // HERE JS v3 has no usable bearing/tilt camera controls. The React view
-    // applies both values to its oversized map plane with CSS transforms.
-    heading: 0,
-    tilt: 0,
+    // The React view applies bearing and tilt to its oversized map plane with
+    // CSS transforms, so the native camera stays north-up and top-down. Leave
+    // heading/tilt out rather than sending 0: in HERE JS 3.2 north-up is
+    // heading 180, and heading 0 turns the map upside down.
   };
 }
 
