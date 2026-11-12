@@ -1,10 +1,16 @@
-import { createGeoPoint } from '@mapconductor/js-sdk-core';
+import { createGeoPoint, MapPaddings, paddedCameraCenter, paddedCameraTarget } from '@mapconductor/js-sdk-core';
 import { toGeoPoint } from './GeoPoint';
 import { mapCameraPositionFrom, toHereLookAtData } from './MapCameraPosition';
 import type { GeoPoint, MapCameraPosition } from '@mapconductor/js-sdk-core';
 import type { HereViewHolder } from './HereViewHolder';
 import type { HereCameraConstraints } from './HereCameraConstraints';
 import { readVisibleRegion } from './HereVisibleRegion';
+
+/**
+ * HERE JS の 2D 地図は傾けられないので、平面を CSS で潰して tilt を見せている。
+ * 遠近は無いので上下視野角は 0。
+ */
+const HERE_VERTICAL_FOV_DEGREES = 0;
 
 /** カメラが止まったとみなすまでの無操作時間。HERE JS に移動終了の通知が無いため。 */
 const CAMERA_MOVE_END_IDLE_MS = 120;
@@ -37,6 +43,11 @@ export class HereCameraState {
   private moveInProgress = false;
   private moveEndTimer: ReturnType<typeof setTimeout> | null = null;
   private lastReported: MapCameraPosition | null = null;
+  /**
+   * 最後に動かしたときの `MapCameraPosition.paddings`。HERE の tilt は CSS で平面を
+   * 潰して見せているので、ViewPort のパディングではなく中心をずらして再現する。
+   */
+  private cameraPaddings: MapPaddings | null = null;
 
   constructor(private readonly deps: CameraDeps) {}
 
@@ -72,7 +83,8 @@ export class HereCameraState {
     { animated, snapZoom = true }: { animated: boolean; snapZoom?: boolean },
   ): Promise<boolean> {
     this.setLogical(position);
-    const lookAt = this.deps.constraints.constrain(toHereLookAtData(position, { snapZoom }));
+    const sent = this.withPaddedCenter(position, snapZoom ? Math.round(position.zoom) : position.zoom);
+    const lookAt = this.deps.constraints.constrain(toHereLookAtData(sent, { snapZoom }));
     if (!animated) {
       this.deps.holder.map.getViewModel().setLookAtData(lookAt, false);
       return Promise.resolve(true);
@@ -95,14 +107,43 @@ export class HereCameraState {
   read(): MapCameraPosition | null {
     const lookAt = this.deps.holder.map.getViewModel().getLookAtData();
     const usesNegativeTiltOffset = this.logicalTilt < 0;
+    const zoom = usesNegativeTiltOffset ? this.logicalZoom : lookAt.zoom;
+    const live = toGeoPoint(lookAt.position);
     const logical = mapCameraPositionFrom({
-      position: usesNegativeTiltOffset ? this.logicalPosition : toGeoPoint(lookAt.position),
-      zoom: usesNegativeTiltOffset ? this.logicalZoom : lookAt.zoom,
+      position: usesNegativeTiltOffset
+        ? this.logicalPosition
+        : this.cameraPaddings && zoom !== undefined
+          ? paddedCameraTarget(live, this.paddingParams(this.cameraPaddings, zoom))
+          : live,
+      zoom,
       bearing: this.logicalBearing,
       tilt: this.logicalTilt,
-    });
+    }).copy({ paddings: this.cameraPaddings ?? MapPaddings.Zeros, fov: HERE_VERTICAL_FOV_DEGREES });
     const visibleRegion = readVisibleRegion(this.deps.holder);
     return visibleRegion ? logical.copy({ visibleRegion }) : logical;
+  }
+
+  /**
+   * パディングを除いた領域の中央に target が来るよう、lookAt の中心をずらす。
+   * 傾きは CSS で平面を潰しているだけ（遠近なし）なので fov 0 で計算する。
+   */
+  private withPaddedCenter(position: MapCameraPosition, zoom: number): MapCameraPosition {
+    const paddings = position.paddings ?? this.cameraPaddings;
+    this.cameraPaddings = paddings;
+    if (!paddings) return position;
+    return position.copy({ position: paddedCameraCenter(position.position, this.paddingParams(paddings, zoom)) });
+  }
+
+  private paddingParams(paddings: MapPaddings, zoom: number) {
+    const viewport = this.deps.holder.mapView.parentElement;
+    return {
+      zoom,
+      tilt: this.visualTilt,
+      bearing: this.visualBearing,
+      paddings,
+      fov: HERE_VERTICAL_FOV_DEGREES,
+      viewport: { width: viewport?.clientWidth ?? 0, height: viewport?.clientHeight ?? 0 },
+    };
   }
 
   private setLogical(position: MapCameraPosition): void {
