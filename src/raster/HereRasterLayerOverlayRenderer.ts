@@ -25,9 +25,13 @@ import {
   type RasterLayerEntity,
   type RasterLayerOverlayRenderer,
   type RasterLayerState,
+  POLYGON_TILE_LAYER_ID,
+  POLYLINE_TILE_LAYER_ID,
+  CIRCLE_TILE_LAYER_ID,
 } from '@mapconductor/js-sdk-core';
 import type { HereRasterLayerHandle } from './HereRasterLayerHandle';
 import type { HereViewHolder } from '../HereViewHolder';
+import { addStackedLayer } from '../helpers';
 
 interface TileSpec {
   readonly urlTemplate: string;
@@ -98,7 +102,7 @@ export class HereRasterLayerOverlayRenderer
     const tileLayer = new H.map.layer.TileLayer(provider);
     const attached = state.visible !== false;
     if (attached) {
-      this.holder.map.addLayer(tileLayer);
+      this.addToMap(tileLayer, state);
     }
 
     return {
@@ -121,11 +125,26 @@ export class HereRasterLayerOverlayRenderer
     const shouldAttach = state.visible !== false;
     if (shouldAttach === handle.attached) return;
     if (shouldAttach) {
-      this.holder.map.addLayer(handle.layer);
+      this.addToMap(handle.layer, state);
     } else {
       this.holder.map.removeLayer(handle.layer);
     }
     handle.attached = shouldAttach;
+  }
+
+  /**
+   * Under the ground-image layer (rasters are the lowest band), ordered by zIndex. Marker tiles
+   * go above it; they still cannot reach above the polygons, which HERE draws in its object
+   * layer over every layer. Polygon tiles go above the ground-image layer too, then the circle
+   * tiles, then the polyline tiles, under the marker tiles; the natively drawn polygons, circles and
+   * polylines stay over them.
+   */
+  private addToMap(layer: H.map.layer.TileLayer, state: RasterLayerState): void {
+    if (state.id === 'mc-marker-tiles') addStackedLayer(this.holder.map, layer, 'marker', 0);
+    else if (state.id === POLYGON_TILE_LAYER_ID) addStackedLayer(this.holder.map, layer, 'polygon', 0);
+    else if (state.id === CIRCLE_TILE_LAYER_ID) addStackedLayer(this.holder.map, layer, 'circle', 0);
+    else if (state.id === POLYLINE_TILE_LAYER_ID) addStackedLayer(this.holder.map, layer, 'polyline', 0);
+    else addStackedLayer(this.holder.map, layer, 'rasterLayer', state.zIndex);
   }
 
   private async removeLayer(

@@ -1,5 +1,5 @@
 /**
- * Minimal ambient declarations for the HERE Maps API for JavaScript (v3.1).
+ * Minimal ambient declarations for the HERE Maps API for JavaScript (v3.2).
  *
  * The HERE Maps API for JavaScript is loaded from a CDN as a global `H`
  * namespace; consumers are expected to add the corresponding `<script>` tags
@@ -56,7 +56,7 @@ declare global {
     }
 
     class Map {
-      static readonly EngineType: { P2D: number; WEBGL: number; HARP: number };
+      static readonly EngineType: { HARP: number };
 
       constructor(
         element: HTMLElement,
@@ -68,7 +68,7 @@ declare global {
       setBaseLayer(layer: any): void;
       getLayers(): any;
       setLayers(layers: any): void;
-      addLayer(layer: any): void;
+      addLayer(layer: any, opt_idx?: number): void;
       removeLayer(layer: any): void;
 
       getViewModel(): map.ViewModel;
@@ -302,6 +302,12 @@ declare global {
         // ImageTileProvider.Options reference and example code).
         class ImageTileProvider extends Provider {
           constructor(options: ImageTileProviderOptions);
+        }
+
+        /** Holds map objects for an `H.map.layer.ObjectLayer` of its own. */
+        class LocalObjectProvider extends Provider {
+          constructor(options?: Record<string, unknown>);
+          getRootGroup(): { addObject(object: any): any; removeObject(object: any): any };
         }
 
         interface ImageTileProviderOptions {

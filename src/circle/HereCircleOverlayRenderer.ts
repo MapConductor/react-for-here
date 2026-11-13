@@ -21,6 +21,7 @@ import {
 import type { HereActualCircle } from '../HereTypeAlias';
 import { HereViewHolder } from '../HereViewHolder';
 import { toGeoCoordinates } from '../GeoPoint';
+import { spatialStackZIndex } from '../helpers';
 
 export class HereCircleOverlayRenderer extends AbstractCircleOverlayRenderer<
   HereViewHolder,
@@ -104,6 +105,6 @@ function buildCircleGeometry(state: CircleState): H.geo.Polygon | null {
 }
 
 function coerceZIndex(zIndex: number): number {
-  // Mirrors `(state.zIndex ?: 0).coerceIn(0, 511)` in Android.
-  return Math.max(0, Math.min(511, zIndex));
+  // Circle band, above the polygons (was `coerceIn(0, 511)`, the polygons' range).
+  return spatialStackZIndex('circle', zIndex);
 }

@@ -21,7 +21,7 @@ import {
 import {
   useMapViewStyle,
   useCameraRestriction,
-  useMapUISettings,
+  useMapUISettings, usePolylineTilingOptions, useCircleTilingOptions,
   useMarkerRenderingSupport,
 } from '@mapconductor/js-sdk-react/internal';
 import {
@@ -32,7 +32,7 @@ import {
   type MapViewBaseProps,
   type MarkerAnimationOverlayEntry,
   type MarkerState,
-  type MarkerTilingOptions,
+  type MarkerTilingOptions, type PolylineTilingOptions, type CircleTilingOptions,
   type OverlayCollector,
   mapViewStateInternal,
   RasterTilePreferenceKey,
@@ -51,6 +51,18 @@ export interface HereMapView2DProps extends MapViewBaseProps<HereViewStateInterf
   pixelRatio?: number;
   /** Tiling options for large marker sets (renders them as a raster overlay). */
   markerTilingOptions?: MarkerTilingOptions;
+  /**
+   * When to draw polylines as raster tiles ({@link PolylineTilingOptions.Default} if omitted).
+   * Read when the map is created; a later value applies from the next time the polylines are
+   * handed to the map.
+   */
+  polylineTilingOptions?: PolylineTilingOptions;
+  /**
+   * When to draw circles as raster tiles ({@link CircleTilingOptions.Default} if omitted).
+   * Read when the map is created; a later value applies from the next time the circles are
+   * handed to the map.
+   */
+  circleTilingOptions?: CircleTilingOptions;
   /**
    * The HERE `H.service.Platform` instance configured with your credentials.
    * If omitted, a default unauthenticated platform is constructed. Provide
@@ -126,11 +138,14 @@ function HereTiltMarkerCanvas({
         .map((marker) => {
           const bitmapIcon = (marker.icon ?? createDefaultIcon()).toBitmapIcon();
           const screen = holder.toScreenOffset(marker.position);
-          return { bitmapIcon, x: screen.x, y: screen.y };
+          return { bitmapIcon, x: screen.x, y: screen.y, zIndex: marker.zIndex ?? 0 };
         })
-        // Nearer markers (lower on screen) paint last so they overlap the ones
-        // behind them, matching the tilted perspective.
-        .sort((a, b) => a.y - b.y);
+        // A larger zIndex paints last (in front), as on the native markers; on a
+        // tie, nearer markers (lower on screen) paint last so they overlap those
+        // behind them, matching the tilted perspective, and on the same screen
+        // row the left one does. This is markerDrawOrder's rule with the bearing
+        // applied, read straight off the screen.
+        .sort((a, b) => (a.zIndex - b.zIndex) || (a.y - b.y) || (b.x - a.x));
 
       for (const { bitmapIcon, x, y } of items) {
         const img = imageFor(bitmapIcon.url);
@@ -170,6 +185,8 @@ export function HereMapView2D({
   pixelRatio,
   platform,
   markerTilingOptions,
+  polylineTilingOptions,
+  circleTilingOptions,
   className,
   containerStyle,
   onError,
@@ -197,26 +214,56 @@ export function HereMapView2D({
   const [visualTilt, setVisualTilt] = useState(() => state.cameraPosition.tilt);
   const [visualBearing, setVisualBearing] = useState(() => state.cameraPosition.bearing);
   const experimentalTilt = Math.min(60, Math.abs(visualTilt));
-  // While tilted, the CSS `rotateX` below lays the native canvas markers flat
-  // against the ground. We hide them and draw upright DOM billboards instead.
-  const isTilted = experimentalTilt > 0.5;
-  // The oversized (200%) map plane exists only so the CSS rotateX/rotateZ tilt
+  // The oversized map plane exists only so the CSS rotateX/rotateZ tilt
   // hack has content to fill the exposed edges. When the map is flat and
   // north-up (the common case) it serves no purpose and actively hurts: it
-  // renders the map — and HERE's copyright/logo — into a plane twice the
+  // renders the map — and HERE's copyright/logo — into a plane larger than the
   // viewport that gets clipped, hiding the attribution and enlarging the map's
   // internal pixel space (which threw off tap hit-testing). So only expand and
   // transform the plane while actually tilted or rotated; otherwise fill the
   // container exactly 1:1.
   const usesTiltPlane = experimentalTilt > 0.5 || Math.abs(visualBearing) > 0.01;
+  // Native markers live on the plane, so its transform tilts them flat and
+  // turns them with the map. While it applies, hide them and draw upright
+  // billboards in screen space instead.
+  const usesBillboards = usesTiltPlane;
+  // The plane has to cover the viewport whatever the angle. Undoing the tilt
+  // stretches the viewport to H / cos(tilt) along the screen's vertical, and
+  // undoing the rotation turns that rectangle by the bearing; a square as wide
+  // as its diagonal covers it at every bearing. A fixed 200% plane does not:
+  // turned 90 or 270 degrees, its height becomes the screen width, which a
+  // wide viewport outgrows and shows grey bands at the sides.
+  const [viewportSize, setViewportSize] = useState<{ width: number; height: number } | null>(null);
+  useEffect(() => {
+    const outer = outerContainerRef.current;
+    if (!outer) return;
+    const update = () => {
+      const width = outer.clientWidth;
+      const height = outer.clientHeight;
+      setViewportSize(prev => (prev?.width === width && prev?.height === height ? prev : { width, height }));
+    };
+    update();
+    const observer = new ResizeObserver(update);
+    observer.observe(outer);
+    return () => observer.disconnect();
+  }, []);
+  const planeSide = viewportSize
+    ? Math.ceil(Math.hypot(
+        viewportSize.width,
+        viewportSize.height / Math.cos((experimentalTilt * Math.PI) / 180),
+      ))
+    : null;
   const mapPlaneStyle: CSSProperties = usesTiltPlane
     ? {
         position: 'absolute',
         left: '50%',
         top: '50%',
-        width: '200%',
-        height: '200%',
-        transform: `translate(-50%, -50%) rotateZ(${visualBearing}deg) rotateX(${experimentalTilt}deg)`,
+        width: planeSide != null ? `${planeSide}px` : '200%',
+        height: planeSide != null ? `${planeSide}px` : '200%',
+        // Transforms apply right to left: turn the map first, then tilt it
+        // about the *screen* x axis. The other order tilts along the map's own
+        // axis, which leans the map sideways whenever it is rotated.
+        transform: `translate(-50%, -50%) rotateX(${experimentalTilt}deg) rotateZ(${visualBearing}deg)`,
         transformOrigin: '50% 50%',
         transformStyle: 'flat',
         willChange: 'transform',
@@ -249,14 +296,14 @@ export function HereMapView2D({
       typedControllerRef.current?.holder.map.getViewPort().resize();
     });
     return () => cancelAnimationFrame(frame);
-  }, [experimentalTilt, visualBearing]);
+  }, [experimentalTilt, visualBearing, planeSide]);
 
-  // Swap between native canvas markers (untilted) and upright DOM billboards
-  // (tilted). markerStates is a dep so markers added while tilted are hidden
-  // as soon as they appear.
+  // Swap between native markers (flat, north-up) and upright billboards
+  // (tilted or rotated). markerStates is a dep so markers added meanwhile are
+  // hidden as soon as they appear.
   useEffect(() => {
-    typedControllerRef.current?.setNativeMarkersVisible(!isTilted);
-  }, [isTilted, markerStates]);
+    typedControllerRef.current?.setNativeMarkersVisible(!usesBillboards);
+  }, [usesBillboards, markerStates]);
 
   // HERE lays a raster tile out in **device** pixels. On a 2x screen a tile
   // declared as 512 covers 256 CSS px, so the map asks for a zoom one level
@@ -290,6 +337,8 @@ export function HereMapView2D({
       pixelRatio,
       platform,
       markerTilingOptions,
+      polylineTilingOptions,
+      circleTilingOptions,
     };
 
     provider
@@ -301,7 +350,7 @@ export function HereMapView2D({
         // Hide native markers up front when starting tilted so markers rendered
         // by the overlay pipeline (below) are created already hidden, avoiding a
         // flattened-icon flash before the billboard effect runs.
-        ctrl.setNativeMarkersVisible(experimentalTilt <= 0.5);
+        ctrl.setNativeMarkersVisible(!usesBillboards);
         mapViewStateInternal(state).setController(ctrl);
         mapViewStateInternal(state).setCameraPositionChangeListener((camera) => {
           setVisualTilt(camera.tilt);
@@ -443,6 +492,8 @@ export function HereMapView2D({
   }, [minZoom, maxZoom, restrictBounds]);
 
   useMapUISettings(state, controller);
+  usePolylineTilingOptions(controller, polylineTilingOptions);
+  useCircleTilingOptions(controller, circleTilingOptions);
   // マップ生成時 config だけでなく、prop の変化にも追随させる（android-sdk 相当）。
   useCameraRestriction(controller, { cameraRestriction, restrictBounds, minZoom, maxZoom });
 
@@ -475,7 +526,7 @@ export function HereMapView2D({
           camera={state.cameraPosition}
           designAttributionRules={state.mapDesignType.attributionRules}
         />
-        {controller && <HereTiltMarkerCanvas controller={controller} active={isTilted} />}
+        {controller && <HereTiltMarkerCanvas controller={controller} active={usesBillboards} />}
         {animationEntries.length > 0 && typedControllerRef.current && (
           <div style={{ position: 'absolute', inset: 0, zIndex: 650, pointerEvents: 'none' }}>
             <MarkerAnimationLayer

@@ -25,6 +25,10 @@
  */
 import {
   BaseMapViewController,
+  PolygonTiler,
+  POLYGON_TILE_LAYER_ID,
+  polygonTileRasterLayerState, POLYLINE_TILE_LAYER_ID, polylineTileRasterLayerState, CIRCLE_TILE_LAYER_ID, circleTileRasterLayerState,
+  MapPaddings,
   MapUISettings,
   computeFitBoundsCameraPosition,
   type GeoRectBounds,
@@ -64,6 +68,7 @@ import {
   handleMarkerDrag,
   handleMarkerDragEnd,
   handleMarkerDragStart,
+  installTransformedGestures,
   type GestureDeps,
 } from './HereGestureHandlers';
 
@@ -114,6 +119,8 @@ export class HereMapViewController
     };
   }
 
+  /** @internal */
+  private uninstallTransformedGestures: () => void = () => {};
   private readonly onMapChangeHandler = () => this.camera.onChange();
   private readonly onMapChangeEndHandler = () => this.camera.onChangeEnd();
   private readonly onMapClickHandler = (event: H.map.MapEvent) => handleMapClick(this.gestureDeps, event);
@@ -180,9 +187,35 @@ export class HereMapViewController
     });
     this.mapDesignType = { current: initialMapDesignType };
     // Tiled markers render into a raster overlay driven by the raster controller.
-    this.markerController.onRasterLayerUpdate = async state => {
-      if (state) await this.rasterLayerController.composition([state]);
-      else await this.rasterLayerController.clear();
+    // Many polygons are drawn as tiles by the tile service worker and shown
+    // as one raster layer; taps still resolve against the original shapes.
+    this.polygonController.tiler = new PolygonTiler();
+    this.polygonController.tiler.onTemplate = async (template, tileSize) => {
+      if (template) await this.rasterLayerController.upsert(polygonTileRasterLayerState(template, tileSize));
+      else await this.rasterLayerController.removeById(POLYGON_TILE_LAYER_ID);
+    };
+    // Many polylines are drawn as tiles too (the tiler is set by the provider, with the map's
+    // PolylineTilingOptions) and shown as one raster layer, in the polyline band.
+    if (this.polylineController.tiler) {
+      this.polylineController.tiler.onTemplate = async (template, tileSize) => {
+        if (template) await this.rasterLayerController.upsert(polylineTileRasterLayerState(template, tileSize));
+        else await this.rasterLayerController.removeById(POLYLINE_TILE_LAYER_ID);
+      };
+    }
+    // Many circles are drawn as tiles too (the tiler is set by the provider, with the map's
+    // CircleTilingOptions) and shown as one raster layer, at the bottom of the circle band.
+    if (this.circleController.tiler) {
+      this.circleController.tiler.onTemplate = async (template, tileSize) => {
+        if (template) await this.rasterLayerController.upsert(circleTileRasterLayerState(template, tileSize));
+        else await this.rasterLayerController.removeById(CIRCLE_TILE_LAYER_ID);
+      };
+    }
+    // upsert / removeById, not composition / clear: those replace every raster
+    // layer, so marker tiles removed the app's RasterLayers and polygon tiles
+    // (and the app's RasterLayers removed the marker tiles).
+    this.markerController.onRasterLayerUpdate = async (state) => {
+      if (state) await this.rasterLayerController.upsert(state);
+      else await this.rasterLayerController.removeById('mc-marker-tiles');
     };
     this.camera.seed(holder.map.getViewModel().getLookAtData());
     holder.setController(this);
@@ -243,6 +276,7 @@ export class HereMapViewController
     map.addEventListener('dragstart', this.onMarkerDragStartHandler as never);
     map.addEventListener('drag', this.onMarkerDragHandler as never);
     map.addEventListener('dragend', this.onMarkerDragEndHandler as never);
+    this.uninstallTransformedGestures = installTransformedGestures(() => this.gestureDeps);
   }
 
   private detachListeners(): void {
@@ -254,6 +288,8 @@ export class HereMapViewController
     map.removeEventListener('dragstart', this.onMarkerDragStartHandler as never);
     map.removeEventListener('drag', this.onMarkerDragHandler as never);
     map.removeEventListener('dragend', this.onMarkerDragEndHandler as never);
+    this.uninstallTransformedGestures();
+    this.uninstallTransformedGestures = () => {};
   }
 
   // ----- camera (mirrors moveCamera / animateCamera / fitBounds) -------------
@@ -289,7 +325,9 @@ export class HereMapViewController
       bearing: current.bearing,
     });
     if (!fit) return Promise.resolve(false);
-    const target = current.copy({ position: fit.center, zoom: fit.zoom });
+    // Paddings: none. `current` carries the last move's paddings, and copying
+    // them would shift the fitted center by them (MapLibre clears them on a fit).
+    const target = current.copy({ position: fit.center, zoom: fit.zoom, paddings: MapPaddings.Zeros });
     // snapZoom:false — keep the fractional fit zoom so the bounds fit precisely
     // and `padding` has a visible effect.
     return this.camera.apply(target, { animated: false, snapZoom: false });
@@ -315,13 +353,13 @@ export class HereMapViewController
   // ----- lifecycle -----------------------------------------------------------
 
   async clearOverlays(): Promise<void> {
-    await Promise.all([
-      this.markerController.clear(),
-      this.polylineController.clear(),
-      this.polygonController.clear(),
-      this.groundImageController.clear(),
-      this.circleController.clear(),
-      this.rasterLayerController.clear(),
+    await this.clearOverlayControllers([
+      this.markerController,
+      this.polylineController,
+      this.polygonController,
+      this.groundImageController,
+      this.circleController,
+      this.rasterLayerController,
     ]);
   }
 
@@ -451,9 +489,12 @@ export const HereDesignId = {
 
 /**
  * Per-scheme Raster Tile API v3 parameters (`resource`/`style`/`format`),
- * keyed by `HereDesignId`. Only the `normal` scheme ships a night variant;
- * satellite and terrain fall back to their day imagery since HERE doesn't
- * bundle one.
+ * keyed by the design id. v3 has no night variant of the satellite-backed
+ * styles, so the hybrid night designs fall back to their day imagery. v3 also
+ * has no road-network style: `RoadNetwork*` uses the `lite` style without
+ * labels (`background`), the closest to "roads only, no labels or buildings".
+ * Every `HereMapDesign` the SDK defines must have an entry here; ids that
+ * are not listed (e.g. `HereMapDesign.Custom`) fall back to `normal.day`.
  *
  * We build these tiles directly via `H.service.rasterTile.Provider` instead
  * of using `platform.createDefaultLayers()`'s bundled `raster.*` layers:
@@ -474,6 +515,15 @@ const HERE_RASTER_TILE_CONFIG: Record<
   [HereDesignId.HybridDay]: { resource: 'base', style: 'explore.satellite.day', format: 'png8' },
   [HereDesignId.HybridNight]: { resource: 'base', style: 'explore.satellite.day', format: 'png8' },
   [HereDesignId.TerrainDay]: { resource: 'base', style: 'topo.day', format: 'png8' },
+  [HereMapDesign.LiteDay.id]: { resource: 'base', style: 'lite.day', format: 'png8' },
+  [HereMapDesign.LiteNight.id]: { resource: 'base', style: 'lite.night', format: 'png8' },
+  [HereMapDesign.LiteHybridDay.id]: { resource: 'base', style: 'lite.satellite.day', format: 'png8' },
+  [HereMapDesign.LiteHybridNight.id]: { resource: 'base', style: 'lite.satellite.day', format: 'png8' },
+  [HereMapDesign.LogisticsDay.id]: { resource: 'base', style: 'logistics.day', format: 'png8' },
+  [HereMapDesign.LogisticsNight.id]: { resource: 'base', style: 'logistics.night', format: 'png8' },
+  [HereMapDesign.LogisticsHybridDay.id]: { resource: 'base', style: 'logistics.satellite.day', format: 'png8' },
+  [HereMapDesign.RoadNetworkDay.id]: { resource: 'background', style: 'lite.day', format: 'png8' },
+  [HereMapDesign.RoadNetworkNight.id]: { resource: 'background', style: 'lite.night', format: 'png8' },
 };
 
 export function resolveHereBaseLayer(
@@ -490,10 +540,7 @@ export function resolveHereBaseLayer(
     resource: config.resource,
     queryParams: { style: config.style },
   });
-  const provider = new H.service.rasterTile.Provider(rasterTileService, {
-    engineType: H.Map.EngineType.P2D,
-    tileSize: 512,
-  });
+  const provider = new H.service.rasterTile.Provider(rasterTileService, { tileSize: 512 });
   return new H.map.layer.TileLayer(provider);
 }
 

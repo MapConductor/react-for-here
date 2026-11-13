@@ -6,7 +6,7 @@
  */
 import {
   MapProvider,
-  MarkerTilingOptions,
+  MarkerTilingOptions, PolylineTiler, PolylineTilingOptions, CircleTiler, CircleTilingOptions,
   type MapConfig,
   type MapViewControllerInterface,
   type GeoRectBounds,
@@ -40,6 +40,16 @@ export interface HereConfig extends MapConfig {
   platform?: H.service.Platform;
   /** Marker tiling options; large static marker sets render as a raster overlay. */
   markerTilingOptions?: MarkerTilingOptions;
+  /**
+   * When to draw polylines as raster tiles; {@link PolylineTilingOptions.Default} if omitted.
+   * The controller's `setPolylineTilingOptions` replaces it later.
+   */
+  polylineTilingOptions?: PolylineTilingOptions;
+  /**
+   * When to draw circles as raster tiles; {@link CircleTilingOptions.Default} if omitted.
+   * The controller's `setCircleTilingOptions` replaces it later.
+   */
+  circleTilingOptions?: CircleTilingOptions;
 }
 
 export class HereProvider extends MapProvider {
@@ -112,10 +122,6 @@ export class HereProvider extends MapProvider {
         center: { lat: center.latitude, lng: center.longitude },
         zoom,
         pixelRatio: config.pixelRatio ?? window.devicePixelRatio,
-        // The WebGL renderer in HERE Maps API 3.1 flips Raster Tile API v3
-        // textures vertically. P2D renders the tiles in their source
-        // orientation and must match the provider's engine type.
-        engineType: H.Map.EngineType.P2D,
       },
     );
     // Enable basic pan/zoom interactions. Mirrors the implicit behaviour of
@@ -123,6 +129,9 @@ export class HereProvider extends MapProvider {
     // not the map directly.
     const mapEvents = new H.mapevents.MapEvents(map);
     const behavior = new H.mapevents.Behavior(mapEvents);
+    // Bearing and tilt are drawn with CSS (see HereMapSettings), so the
+    // native camera must not rotate or tilt under the user's fingers.
+    behavior.disable(H.mapevents.Behavior.Feature.TILT | H.mapevents.Behavior.Feature.HEADING);
 
     const holder = new HereViewHolder(container, map, behavior);
     const markerController = HereMarkerController.create(
@@ -130,8 +139,14 @@ export class HereProvider extends MapProvider {
       config.markerTilingOptions ?? MarkerTilingOptions.Default,
     );
     const polylineController = new HerePolylineController(new HerePolylineOverlayRenderer(holder));
+    // Many polylines are drawn as tiles by the tile service worker and shown as one raster
+    // layer (the view controller mounts it); taps still resolve against the original paths.
+    polylineController.tiler = new PolylineTiler(config.polylineTilingOptions ?? PolylineTilingOptions.Default);
     const polygonController = new HerePolygonController(new HerePolygonOverlayRenderer(holder));
     const circleController = new HereCircleController(new HereCircleOverlayRenderer(holder));
+    // Many circles are drawn as tiles too, shown as one raster layer at the bottom of the circle
+    // band (the view controller mounts it); taps still resolve against the original circles.
+    circleController.tiler = new CircleTiler(config.circleTilingOptions ?? CircleTilingOptions.Default);
     const groundImageController = new HereGroundImageController(
       new HereGroundImageOverlayRenderer(holder),
     );
