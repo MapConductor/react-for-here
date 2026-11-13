@@ -7,6 +7,74 @@ HERE map through MapConductor's provider-independent camera, marker, and
 overlay API, so the same application code can also run on Google Maps,
 MapLibre, Mapbox, Leaflet, OpenLayers, ArcGIS, or Cesium.
 
+## Demo
+
+[![Store map sample on HERE](https://raw.githubusercontent.com/MapConductor/react-for-here/main/docs/images/demo.jpg)](https://demo-react.mapconductor.com/here/map/en)
+
+Open it in the [live demo](https://demo-react.mapconductor.com/here/map/en): the same store map runs on every provider, and the page switches between them. The code, cut down to three stores:
+
+```tsx
+import { useMemo, useState } from 'react';
+import {
+  createGeoPoint,
+  createMapCameraPosition,
+  createMarkerState,
+  type MarkerState,
+} from '@mapconductor/js-sdk-core';
+import { InfoBubble, Markers } from '@mapconductor/js-sdk-react';
+import { HereMapDesign, HereMapView2D, useHereViewState } from '@mapconductor/react-for-here';
+
+const STORES = [
+  { id: 'waikiki', name: 'Waikiki', latitude: 21.2793, longitude: -157.8292 },
+  { id: 'kailua', name: 'Kailua', latitude: 21.3972, longitude: -157.7394 },
+  { id: 'haleiwa', name: 'Haleiwa', latitude: 21.5928, longitude: -158.1034 },
+];
+
+const INITIAL_CAMERA = createMapCameraPosition({
+  position: createGeoPoint({ latitude: 21.38, longitude: -157.93 }),
+  zoom: 10,
+});
+
+export default function App() {
+  const mapViewState = useHereViewState({
+    mapDesignType: HereMapDesign.NormalDay,
+    cameraPosition: INITIAL_CAMERA,
+  });
+  const platform = useMemo(
+    () => new H.service.Platform({ apikey: 'YOUR_HERE_API_KEY' }),
+    [],
+  );
+  const [selected, setSelected] = useState<MarkerState | null>(null);
+  const markers = useMemo(
+    () =>
+      STORES.map(store =>
+        createMarkerState({
+          id: store.id,
+          position: createGeoPoint({ latitude: store.latitude, longitude: store.longitude }),
+          extra: store,
+          onClick: marker => setSelected(marker),
+        }),
+      ),
+    [],
+  );
+
+  return (
+    <div style={{ width: '100%', height: '100vh' }}>
+      <HereMapView2D state={mapViewState} platform={platform} onMapClick={() => setSelected(null)}>
+        <Markers states={markers} />
+        {selected && (
+          <InfoBubble marker={selected}>
+            <strong>{(selected.extra as (typeof STORES)[number]).name}</strong>
+          </InfoBubble>
+        )}
+      </HereMapView2D>
+    </div>
+  );
+}
+```
+
+Load the HERE Maps API scripts first (see [Loading the HERE Maps API](#loading-the-here-maps-api)) and replace `YOUR_HERE_API_KEY` with your own key.
+
 ## Installation
 
 ```shell
@@ -39,7 +107,7 @@ scripts expose:
 
 You also need an API key from the [HERE platform](https://platform.here.com/).
 
-![](https://raw.githubusercontent.com/mapconductor/react-for-here/docs/images/hello-map.jpg)
+![](https://raw.githubusercontent.com/MapConductor/react-for-here/main/docs/images/hello-map.jpg)
 
 ## Hello Map tutorial
 
