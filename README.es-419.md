@@ -4,6 +4,74 @@
 
 Proveedor de HERE Maps API for JavaScript para el SDK de React de MapConductor. Renderiza un mapa de HERE a través de la API de cámara, marcadores y superposiciones independiente del proveedor de MapConductor, de modo que el mismo código de aplicación también puede ejecutarse en Google Maps, MapLibre, Mapbox, Leaflet, OpenLayers, ArcGIS o Cesium.
 
+## Demostración
+
+[![Ejemplo de mapa de tiendas con HERE](https://raw.githubusercontent.com/MapConductor/react-for-here/main/docs/images/demo.jpg)](https://demo-react.mapconductor.com/here/map/en)
+
+Ábrelo en la [demo en vivo](https://demo-react.mapconductor.com/here/map/en): el mismo mapa de tiendas funciona con todos los proveedores y la página cambia entre ellos. El código, reducido a tres tiendas:
+
+```tsx
+import { useMemo, useState } from 'react';
+import {
+  createGeoPoint,
+  createMapCameraPosition,
+  createMarkerState,
+  type MarkerState,
+} from '@mapconductor/js-sdk-core';
+import { InfoBubble, Markers } from '@mapconductor/js-sdk-react';
+import { HereMapDesign, HereMapView2D, useHereViewState } from '@mapconductor/react-for-here';
+
+const STORES = [
+  { id: 'waikiki', name: 'Waikiki', latitude: 21.2793, longitude: -157.8292 },
+  { id: 'kailua', name: 'Kailua', latitude: 21.3972, longitude: -157.7394 },
+  { id: 'haleiwa', name: 'Haleiwa', latitude: 21.5928, longitude: -158.1034 },
+];
+
+const INITIAL_CAMERA = createMapCameraPosition({
+  position: createGeoPoint({ latitude: 21.38, longitude: -157.93 }),
+  zoom: 10,
+});
+
+export default function App() {
+  const mapViewState = useHereViewState({
+    mapDesignType: HereMapDesign.NormalDay,
+    cameraPosition: INITIAL_CAMERA,
+  });
+  const platform = useMemo(
+    () => new H.service.Platform({ apikey: 'YOUR_HERE_API_KEY' }),
+    [],
+  );
+  const [selected, setSelected] = useState<MarkerState | null>(null);
+  const markers = useMemo(
+    () =>
+      STORES.map(store =>
+        createMarkerState({
+          id: store.id,
+          position: createGeoPoint({ latitude: store.latitude, longitude: store.longitude }),
+          extra: store,
+          onClick: marker => setSelected(marker),
+        }),
+      ),
+    [],
+  );
+
+  return (
+    <div style={{ width: '100%', height: '100vh' }}>
+      <HereMapView2D state={mapViewState} platform={platform} onMapClick={() => setSelected(null)}>
+        <Markers states={markers} />
+        {selected && (
+          <InfoBubble marker={selected}>
+            <strong>{(selected.extra as (typeof STORES)[number]).name}</strong>
+          </InfoBubble>
+        )}
+      </HereMapView2D>
+    </div>
+  );
+}
+```
+
+Carga primero los scripts de la API de HERE Maps (consulta [Carga de la HERE Maps API for JavaScript](#carga-de-la-here-maps-api-for-javascript)) y reemplaza `YOUR_HERE_API_KEY` con tu propia clave.
+
 ## Instalación
 
 ```shell
@@ -30,7 +98,7 @@ La HERE Maps API for JavaScript no se distribuye por npm. Cárgala desde el CDN 
 
 También necesitas una clave de API de la [plataforma HERE](https://platform.here.com/).
 
-![](https://raw.githubusercontent.com/mapconductor/react-for-here/docs/images/hello-map.jpg)
+![](https://raw.githubusercontent.com/MapConductor/react-for-here/main/docs/images/hello-map.jpg)
 
 ## Tutorial Hello Map
 
